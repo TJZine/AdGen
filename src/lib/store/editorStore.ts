@@ -22,6 +22,9 @@ export interface EditorState {
   reorderItems: (sectionId: string, itemIds: string[]) => void;
   setZoom: (zoom: number) => void;
   selectElement: (elementId: string | null) => void;
+  updateLayoutElements: (
+    updates: Array<{ id: string; x?: number; y?: number; width?: number; height?: number; locked?: boolean }>
+  ) => void;
   undo: () => void;
   redo: () => void;
   saveProject: () => Promise<void>;
@@ -295,6 +298,49 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   selectElement: (elementId) => {
     set({ selectedElementId: elementId });
+  },
+
+  updateLayoutElements: (updates) => {
+    const { project, undoStack } = get();
+    const nextProject = cloneProject(project);
+
+    let hasChanges = false;
+    for (const update of updates) {
+      const element = nextProject.layout.elements.find((el) => el.id === update.id);
+      if (element) {
+        const xChanged = update.x !== undefined && update.x !== element.x;
+        const yChanged = update.y !== undefined && update.y !== element.y;
+        const widthChanged = update.width !== undefined && update.width !== element.width;
+        const heightChanged = update.height !== undefined && update.height !== element.height;
+
+        if (update.x !== undefined) element.x = update.x;
+        if (update.y !== undefined) element.y = update.y;
+        if (update.width !== undefined) element.width = update.width;
+        if (update.height !== undefined) element.height = update.height;
+
+        if (xChanged || yChanged || widthChanged || heightChanged) {
+          element.locked = true;
+        } else if (update.locked !== undefined) {
+          element.locked = update.locked;
+        }
+        hasChanges = true;
+      }
+    }
+
+    if (hasChanges) {
+      const solved = solveLayout(nextProject);
+      nextProject.layout.elements = solved.elements;
+      nextProject.layout.score = solved.score;
+      nextProject.layout.warnings = solved.warnings;
+
+      const MAX_HISTORY = 50;
+      set({
+        project: nextProject,
+        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
+        redoStack: [],
+        hasUnsavedChanges: true,
+      });
+    }
   },
 
   undo: () => {

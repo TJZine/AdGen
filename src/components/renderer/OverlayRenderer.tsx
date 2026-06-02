@@ -1,7 +1,10 @@
-import React from 'react';
+"use client";
+
+import React, { useState, useEffect } from 'react';
 import { Project, LayoutElement } from '../../lib/schemas/project';
 import { fitText } from '../../lib/layout/textFit';
 import { getElementText } from './BackgroundRenderer';
+import { useEditorStore } from '../../lib/store/editorStore';
 
 export interface OverlayRendererProps {
   project: Project;
@@ -27,9 +30,197 @@ function isDarkColor(hex: string): boolean {
   return true;
 }
 
+interface DragState {
+  elementId: string;
+  type: 'drag' | 'resize';
+  handle?: 'nw' | 'ne' | 'se' | 'sw';
+  startX: number;
+  startY: number;
+  startElementX: number;
+  startElementY: number;
+  startElementW: number;
+  startElementH: number;
+}
+
 export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => {
   const { canvas, brand, layout } = project;
   const elements = layout.elements || [];
+
+  const selectedElementId = useEditorStore((state) => state.selectedElementId);
+  const selectElement = useEditorStore((state) => state.selectElement);
+  const updateLayoutElements = useEditorStore((state) => state.updateLayoutElements);
+  const zoom = useEditorStore((state) => state.zoom);
+
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [tempCoords, setTempCoords] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  const handleElementMouseDown = (e: React.MouseEvent, el: LayoutElement) => {
+    e.stopPropagation();
+    selectElement(el.id);
+
+    setDragState({
+      elementId: el.id,
+      type: 'drag',
+      startX: e.clientX,
+      startY: e.clientY,
+      startElementX: el.x,
+      startElementY: el.y,
+      startElementW: el.width,
+      startElementH: el.height,
+    });
+
+    setTempCoords({
+      x: el.x,
+      y: el.y,
+      width: el.width,
+      height: el.height,
+    });
+  };
+
+  const handleResizeMouseDown = (e: React.MouseEvent, el: LayoutElement, handle: 'nw' | 'ne' | 'se' | 'sw') => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    setDragState({
+      elementId: el.id,
+      type: 'resize',
+      handle,
+      startX: e.clientX,
+      startY: e.clientY,
+      startElementX: el.x,
+      startElementY: el.y,
+      startElementW: el.width,
+      startElementH: el.height,
+    });
+
+    setTempCoords({
+      x: el.x,
+      y: el.y,
+      width: el.width,
+      height: el.height,
+    });
+  };
+
+  useEffect(() => {
+    if (!dragState) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const dx = (e.clientX - dragState.startX) / zoom;
+      const dy = (e.clientY - dragState.startY) / zoom;
+
+      const safeMarginPx = canvas.safeMarginPx;
+      const maxRight = canvas.widthPx - safeMarginPx;
+      const maxBottom = canvas.heightPx - safeMarginPx;
+
+      if (dragState.type === 'drag') {
+        const calculatedX = dragState.startElementX + dx;
+        const calculatedY = dragState.startElementY + dy;
+
+        const newX = Math.max(safeMarginPx, Math.min(canvas.widthPx - safeMarginPx - dragState.startElementW, calculatedX));
+        const newY = Math.max(safeMarginPx, Math.min(canvas.heightPx - safeMarginPx - dragState.startElementH, calculatedY));
+
+        setTempCoords({
+          x: newX,
+          y: newY,
+          width: dragState.startElementW,
+          height: dragState.startElementH,
+        });
+      } else if (dragState.type === 'resize' && dragState.handle) {
+        let newX = dragState.startElementX;
+        let newY = dragState.startElementY;
+        let newW = dragState.startElementW;
+        let newH = dragState.startElementH;
+
+        const handle = dragState.handle;
+
+        if (handle === 'nw') {
+          const targetX = dragState.startElementX + dx;
+          const targetY = dragState.startElementY + dy;
+
+          newX = Math.max(safeMarginPx, targetX);
+          newW = Math.max(120, dragState.startElementW - (newX - dragState.startElementX));
+          if (newW === 120) {
+            newX = dragState.startElementX + dragState.startElementW - 120;
+          }
+
+          newY = Math.max(safeMarginPx, targetY);
+          newH = Math.max(60, dragState.startElementH - (newY - dragState.startElementY));
+          if (newH === 60) {
+            newY = dragState.startElementY + dragState.startElementH - 60;
+          }
+        } else if (handle === 'ne') {
+          const targetY = dragState.startElementY + dy;
+          const targetW = dragState.startElementW + dx;
+
+          newY = Math.max(safeMarginPx, targetY);
+          newH = Math.max(60, dragState.startElementH - (newY - dragState.startElementY));
+          if (newH === 60) {
+            newY = dragState.startElementY + dragState.startElementH - 60;
+          }
+
+          newW = Math.max(120, Math.min(maxRight - dragState.startElementX, targetW));
+        } else if (handle === 'se') {
+          const targetW = dragState.startElementW + dx;
+          const targetH = dragState.startElementH + dy;
+
+          newW = Math.max(120, Math.min(maxRight - dragState.startElementX, targetW));
+          newH = Math.max(60, Math.min(maxBottom - dragState.startElementY, targetH));
+        } else if (handle === 'sw') {
+          const targetX = dragState.startElementX + dx;
+          const targetH = dragState.startElementH + dy;
+
+          newX = Math.max(safeMarginPx, targetX);
+          newW = Math.max(120, dragState.startElementW - (newX - dragState.startElementX));
+          if (newW === 120) {
+            newX = dragState.startElementX + dragState.startElementW - 120;
+          }
+
+          newH = Math.max(60, Math.min(maxBottom - dragState.startElementY, targetH));
+        }
+
+        setTempCoords({
+          x: newX,
+          y: newY,
+          width: newW,
+          height: newH,
+        });
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (tempCoords) {
+        updateLayoutElements([
+          {
+            id: dragState.elementId,
+            x: tempCoords.x,
+            y: tempCoords.y,
+            width: tempCoords.width,
+            height: tempCoords.height,
+          },
+        ]);
+      }
+      setDragState(null);
+      setTempCoords(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragState, tempCoords, zoom, canvas.widthPx, canvas.heightPx, canvas.safeMarginPx, updateLayoutElements]);
+
+  const handleStyle = {
+    position: 'absolute' as const,
+    width: '8px',
+    height: '8px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #3b82f6',
+    borderRadius: '50%',
+    zIndex: 10,
+  };
 
   return (
     <div
@@ -42,7 +233,12 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
         height: `${canvas.heightPx}px`,
         backgroundColor: 'transparent',
         overflow: 'hidden',
-        pointerEvents: 'none',
+        pointerEvents: 'auto',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          selectElement(null);
+        }
       }}
     >
       {elements.map((el: LayoutElement) => {
@@ -57,14 +253,18 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
           return null;
         }
 
-        // Determine base font size depending on element type
+        const isSelected = selectedElementId === el.id;
+        const currentX = (dragState?.elementId === el.id && tempCoords) ? tempCoords.x : el.x;
+        const currentY = (dragState?.elementId === el.id && tempCoords) ? tempCoords.y : el.y;
+        const currentWidth = (dragState?.elementId === el.id && tempCoords) ? tempCoords.width : el.width;
+        const currentHeight = (dragState?.elementId === el.id && tempCoords) ? tempCoords.height : el.height;
+
         let baseFontSize = el.style.fontSize || 14;
         if (el.type === 'section_header' && !el.style.fontSize) {
           baseFontSize = 28;
         }
 
-        // Fit text using the solver's wrapping and scaling rules
-        const fit = fitText(text, el.width, el.height, baseFontSize);
+        const fit = fitText(text, currentWidth, currentHeight, baseFontSize);
         const fontSize = fit.fontSize;
         const color = el.style.color || brand.colors.primary;
         const fontFamily = el.style.fontFamily || brand.fontPreferences.body;
@@ -95,38 +295,69 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
             data-testid={`text-overlay-${el.id}`}
             style={{
               position: 'absolute',
-              left: `${el.x}px`,
-              top: `${el.y}px`,
-              width: `${el.width}px`,
-              height: `${el.height}px`,
+              left: `${currentX}px`,
+              top: `${currentY}px`,
+              width: `${currentWidth}px`,
+              height: `${currentHeight}px`,
               fontSize: `${fontSize}px`,
               fontFamily: fontFamily,
               color: color,
               textAlign: textAlign,
               fontWeight: fontWeight,
               lineHeight: '1.2',
-              overflow: 'hidden',
+              overflow: 'visible',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
+              cursor: 'move',
+              outline: isSelected ? '1.5px solid #3b82f6' : 'none',
+              pointerEvents: 'auto',
               ...containerShadowStyle,
             }}
+            onMouseDown={(e) => handleElementMouseDown(e, el)}
           >
-            {fit.lines.map((line, idx) => (
-              <div
-                key={idx}
-                style={{
-                  whiteSpace: 'nowrap',
-                  margin: preset === 'backing_plate' ? '2px 0' : '0',
-                }}
-              >
-                {preset === 'backing_plate' ? (
-                  <span style={backingPlateStyle}>{line}</span>
-                ) : (
-                  <span style={textStrokeStyle}>{line}</span>
-                )}
-              </div>
-            ))}
+            <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              {fit.lines.map((line, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    whiteSpace: 'nowrap',
+                    margin: preset === 'backing_plate' ? '2px 0' : '0',
+                  }}
+                >
+                  {preset === 'backing_plate' ? (
+                    <span style={backingPlateStyle}>{line}</span>
+                  ) : (
+                    <span style={textStrokeStyle}>{line}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {isSelected && (
+              <>
+                <div
+                  data-testid={`resize-handle-nw-${el.id}`}
+                  style={{ ...handleStyle, top: '-4px', left: '-4px', cursor: 'nwse-resize' }}
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, 'nw')}
+                />
+                <div
+                  data-testid={`resize-handle-ne-${el.id}`}
+                  style={{ ...handleStyle, top: '-4px', right: '-4px', cursor: 'nesw-resize' }}
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, 'ne')}
+                />
+                <div
+                  data-testid={`resize-handle-se-${el.id}`}
+                  style={{ ...handleStyle, bottom: '-4px', right: '-4px', cursor: 'nwse-resize' }}
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, 'se')}
+                />
+                <div
+                  data-testid={`resize-handle-sw-${el.id}`}
+                  style={{ ...handleStyle, bottom: '-4px', left: '-4px', cursor: 'nesw-resize' }}
+                  onMouseDown={(e) => handleResizeMouseDown(e, el, 'sw')}
+                />
+              </>
+            )}
           </div>
         );
       })}

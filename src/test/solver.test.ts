@@ -268,4 +268,43 @@ describe('HGP Layout Solver', () => {
     expect(distance).toBeLessThan(67);
     expect(distance).toBeGreaterThan(63);
   });
+
+  it('should respect locked layout elements coordinates and styles', () => {
+    const project = createMockProject(1);
+    
+    const initialResult = solveLayout(project);
+    const firstElement = initialResult.elements[0];
+    expect(firstElement.locked).toBe(false);
+
+    const customX = 99;
+    const customY = 88;
+    const customWidth = 333;
+    const customHeight = 222;
+    
+    project.layout.elements = [
+      {
+        ...firstElement,
+        x: customX,
+        y: customY,
+        width: customWidth,
+        height: customHeight,
+        locked: true,
+        style: {
+          ...firstElement.style,
+          color: '#ffffff',
+        },
+      },
+    ];
+
+    const secondResult = solveLayout(project);
+    const solvedElement = secondResult.elements.find(el => el.id === firstElement.id);
+    
+    expect(solvedElement).toBeDefined();
+    expect(solvedElement!.x).toBe(customX);
+    expect(solvedElement!.y).toBe(customY);
+    expect(solvedElement!.width).toBe(customWidth);
+    expect(solvedElement!.height).toBe(customHeight);
+    expect(solvedElement!.locked).toBe(true);
+    expect(solvedElement!.style.color).toBe('#ffffff');
+  });
 });

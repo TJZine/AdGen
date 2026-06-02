@@ -9,6 +9,31 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
   const { canvas, brand, content, layout } = project;
   const elements: LayoutElement[] = [];
 
+  const resolveElement = (el: LayoutElement): LayoutElement => {
+    const existing = project.layout?.elements?.find((x) => x.id === el.id);
+    if (existing && existing.locked) {
+      return {
+        ...el,
+        x: existing.x,
+        y: existing.y,
+        width: existing.width,
+        height: existing.height,
+        locked: true,
+        style: {
+          ...el.style,
+          ...existing.style,
+        },
+      };
+    }
+    return el;
+  };
+
+  const originalPush = elements.push.bind(elements);
+  elements.push = (...items: LayoutElement[]): number => {
+    const resolved = items.map(resolveElement);
+    return originalPush(...resolved);
+  };
+
   let safeMargin = canvas.safeMarginPx;
   if (canvas.widthPx - 2 * safeMargin <= 0 || canvas.heightPx - 2 * safeMargin <= 0) {
     safeMargin = Math.min(canvas.widthPx, canvas.heightPx) * 0.05;
@@ -204,14 +229,30 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
 
         const cols = bestCols;
         const rows = bestRows;
-        const cardWidth = safeWidth / cols;
-        const cardHeight = gridHeight / rows;
+        const baseCardWidth = safeWidth / cols;
+        const baseCardHeight = gridHeight / rows;
 
         visibleItems.forEach((item, itemIdx) => {
           const colIndex = itemIdx % cols;
           const rowIndex = Math.floor(itemIdx / cols);
-          const cardX = safeX + colIndex * cardWidth;
-          const cardY = gridY + rowIndex * cardHeight;
+          let initialCardX = safeX + colIndex * baseCardWidth;
+          let initialCardY = gridY + rowIndex * baseCardHeight;
+          let activeCardWidth = baseCardWidth;
+          let activeCardHeight = baseCardHeight;
+
+          const cardId = `item-card-${item.id}`;
+          const existingCard = project.layout?.elements?.find((x) => x.id === cardId);
+          if (existingCard && existingCard.locked) {
+            initialCardX = existingCard.x;
+            initialCardY = existingCard.y;
+            activeCardWidth = existingCard.width;
+            activeCardHeight = existingCard.height;
+          }
+
+          const cardX = initialCardX;
+          const cardY = initialCardY;
+          const cardWidth = activeCardWidth;
+          const cardHeight = activeCardHeight;
 
           cardsToEvaluate.push({
             sectionTitle: section.title,
@@ -221,7 +262,7 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
 
           // Add card background element
           elements.push({
-            id: `item-card-${item.id}`,
+            id: cardId,
             type: 'item_card',
             contentRef: item.id,
             x: cardX,

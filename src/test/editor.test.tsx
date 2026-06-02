@@ -371,6 +371,31 @@ describe('Zustand Editor Store', () => {
     expect(state.isSaving).toBe(false);
     expect(state.hasUnsavedChanges).toBe(false);
   });
+
+  it('should update layout elements using updateLayoutElements, mark as locked on change, run solver, and maintain history', () => {
+    const store = useEditorStore.getState();
+    
+    store.updateProjectField('name', 'Trigger Solve');
+    let state = useEditorStore.getState();
+    const firstElement = state.project.layout.elements[0];
+    expect(firstElement).toBeDefined();
+    expect(firstElement.locked).toBe(false);
+
+    const originalX = firstElement.x;
+    const originalY = firstElement.y;
+    const targetX = originalX + 10;
+    const targetY = originalY + 15;
+
+    store.updateLayoutElements([{ id: firstElement.id, x: targetX, y: targetY }]);
+
+    state = useEditorStore.getState();
+    const updatedElement = state.project.layout.elements.find(el => el.id === firstElement.id);
+    expect(updatedElement).toBeDefined();
+    expect(updatedElement!.x).toBe(targetX);
+    expect(updatedElement!.y).toBe(targetY);
+    expect(updatedElement!.locked).toBe(true);
+    expect(state.undoStack).toHaveLength(2);
+  });
 });
 
 describe('Focal Crop Click Coordinate Math', () => {
