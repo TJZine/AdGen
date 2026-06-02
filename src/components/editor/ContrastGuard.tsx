@@ -163,7 +163,8 @@ export const ContrastGuard: React.FC<ContrastGuardProps> = ({ project, assets })
           const imgData = ctx.getImageData(rx, ry, rw, rh);
           const data = imgData.data;
 
-          let totalLuminance = 0;
+          let minBgLuminance = Infinity;
+          let maxBgLuminance = -Infinity;
           let count = 0;
 
           const textColor = el.style.color || project.brand.colors.primary;
@@ -192,24 +193,35 @@ export const ContrastGuard: React.FC<ContrastGuardProps> = ({ project, assets })
               b = b * (1 - plateAlpha) + plateColor.b * plateAlpha;
             }
 
-            totalLuminance += getRelativeLuminance(r, g, b);
+            const luminance = getRelativeLuminance(r, g, b);
+            if (luminance < minBgLuminance) minBgLuminance = luminance;
+            if (luminance > maxBgLuminance) maxBgLuminance = luminance;
             count++;
           }
 
-          const avgBgLuminance = count > 0 ? totalLuminance / count : 0;
+          if (count === 0) {
+            minBgLuminance = 0;
+            maxBgLuminance = 0;
+          }
+
           const rgbText = hexToRgb(textColor);
           const textLuminance = getRelativeLuminance(rgbText.r, rgbText.g, rgbText.b);
 
-          const l1 = textLuminance;
-          const l2 = avgBgLuminance;
-          const ratio = l1 > l2 ? (l1 + 0.05) / (l2 + 0.05) : (l2 + 0.05) / (l1 + 0.05);
+          const ratioMin = textLuminance > minBgLuminance
+            ? (textLuminance + 0.05) / (minBgLuminance + 0.05)
+            : (minBgLuminance + 0.05) / (textLuminance + 0.05);
+
+          const ratioMax = textLuminance > maxBgLuminance
+            ? (textLuminance + 0.05) / (maxBgLuminance + 0.05)
+            : (maxBgLuminance + 0.05) / (textLuminance + 0.05);
 
           const isLargeText = el.type === 'section_header' ||
                               el.contentRef === 'content.headline' ||
                               el.contentRef === 'content.subheadline' ||
                               (el.style.fontSize && el.style.fontSize >= 24);
           const threshold = isLargeText ? 3.0 : 4.5;
-          const isCompliant = ratio >= threshold;
+          const isCompliant = ratioMin >= threshold && ratioMax >= threshold;
+          const ratio = Math.min(ratioMin, ratioMax);
 
           if (!isCompliant) {
             newWarnings[el.id] = {

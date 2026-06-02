@@ -12,6 +12,7 @@ export interface EditorState {
   redoStack: Project[];
   isSaving: boolean;
   hasUnsavedChanges: boolean;
+  lastSavedProjectJson: string | null;
 
   setProject: (project: Project, assets: Asset[]) => void;
   updateProjectField: (path: string, value: any) => void;
@@ -118,6 +119,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   redoStack: [],
   isSaving: false,
   hasUnsavedChanges: false,
+  lastSavedProjectJson: null,
 
   setProject: (project, assets) => {
     // Clones the project and runs the solver just in case the initial state needs solved elements
@@ -135,12 +137,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       redoStack: [],
       isSaving: false,
       hasUnsavedChanges: false,
+      lastSavedProjectJson: JSON.stringify(nextProject),
     });
   },
 
   updateProjectField: (path, value) => {
     const { project, undoStack } = get();
-    const prevProjectCloned = cloneProject(project);
     const nextProject = cloneProject(project);
 
     setNestedField(nextProject, path, value);
@@ -150,9 +152,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     nextProject.layout.score = solved.score;
     nextProject.layout.warnings = solved.warnings;
 
+    const MAX_HISTORY = 50;
     set({
       project: nextProject,
-      undoStack: [...undoStack, prevProjectCloned],
+      undoStack: [...undoStack, project].slice(-MAX_HISTORY),
       redoStack: [],
       hasUnsavedChanges: true,
     });
@@ -160,7 +163,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   updateSection: (sectionId, updates) => {
     const { project, undoStack } = get();
-    const prevProjectCloned = cloneProject(project);
     const nextProject = cloneProject(project);
 
     const section = nextProject.content.sections.find((s) => s.id === sectionId);
@@ -172,9 +174,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextProject.layout.score = solved.score;
       nextProject.layout.warnings = solved.warnings;
 
+      const MAX_HISTORY = 50;
       set({
         project: nextProject,
-        undoStack: [...undoStack, prevProjectCloned],
+        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
         redoStack: [],
         hasUnsavedChanges: true,
       });
@@ -183,7 +186,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   updateItem: (itemId, updates) => {
     const { project, undoStack } = get();
-    const prevProjectCloned = cloneProject(project);
     const nextProject = cloneProject(project);
 
     let itemFound = false;
@@ -205,9 +207,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextProject.layout.score = solved.score;
       nextProject.layout.warnings = solved.warnings;
 
+      const MAX_HISTORY = 50;
       set({
         project: nextProject,
-        undoStack: [...undoStack, prevProjectCloned],
+        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
         redoStack: [],
         hasUnsavedChanges: true,
       });
@@ -216,7 +219,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   reorderSections: (sectionIds) => {
     const { project, undoStack } = get();
-    const prevProjectCloned = cloneProject(project);
     const nextProject = cloneProject(project);
 
     const sections = [...nextProject.content.sections];
@@ -243,9 +245,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     nextProject.layout.score = solved.score;
     nextProject.layout.warnings = solved.warnings;
 
+    const MAX_HISTORY = 50;
     set({
       project: nextProject,
-      undoStack: [...undoStack, prevProjectCloned],
+      undoStack: [...undoStack, project].slice(-MAX_HISTORY),
       redoStack: [],
       hasUnsavedChanges: true,
     });
@@ -253,7 +256,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   reorderItems: (sectionId, itemIds) => {
     const { project, undoStack } = get();
-    const prevProjectCloned = cloneProject(project);
     const nextProject = cloneProject(project);
 
     const section = nextProject.content.sections.find((s) => s.id === sectionId);
@@ -277,9 +279,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextProject.layout.score = solved.score;
       nextProject.layout.warnings = solved.warnings;
 
+      const MAX_HISTORY = 50;
       set({
         project: nextProject,
-        undoStack: [...undoStack, prevProjectCloned],
+        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
         redoStack: [],
         hasUnsavedChanges: true,
       });
@@ -299,10 +302,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (state.undoStack.length === 0) return {};
       const nextUndoStack = [...state.undoStack];
       const poppedProject = nextUndoStack.pop()!;
+      const MAX_HISTORY = 50;
       return {
         project: poppedProject,
         undoStack: nextUndoStack,
-        redoStack: [...state.redoStack, cloneProject(state.project)],
+        redoStack: [...state.redoStack, state.project].slice(-MAX_HISTORY),
         hasUnsavedChanges: true,
       };
     });
@@ -313,9 +317,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (state.redoStack.length === 0) return {};
       const nextRedoStack = [...state.redoStack];
       const poppedProject = nextRedoStack.pop()!;
+      const MAX_HISTORY = 50;
       return {
         project: poppedProject,
-        undoStack: [...state.undoStack, cloneProject(state.project)],
+        undoStack: [...state.undoStack, state.project].slice(-MAX_HISTORY),
         redoStack: nextRedoStack,
         hasUnsavedChanges: true,
       };
@@ -324,6 +329,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   saveProject: async () => {
     const project = get().project;
+    const projectJsonBeforeSave = JSON.stringify(project);
     set({ isSaving: true });
     try {
       const response = await fetch(`/api/projects/${project.id}`, {
@@ -331,14 +337,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(project),
+        body: projectJsonBeforeSave,
       });
 
       if (!response.ok) {
         throw new Error(`Failed to save project. Status: ${response.status}`);
       }
 
-      set({ isSaving: false, hasUnsavedChanges: false });
+      const currentProjectJson = JSON.stringify(get().project);
+      const isStillSame = currentProjectJson === projectJsonBeforeSave;
+
+      set({
+        isSaving: false,
+        hasUnsavedChanges: !isStillSame,
+        lastSavedProjectJson: projectJsonBeforeSave,
+      });
     } catch (error) {
       console.error('Error saving project:', error);
       set({ isSaving: false });

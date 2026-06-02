@@ -68,6 +68,13 @@ export default async function RenderCanvasPage({
   const showOverlay = mode === 'full' || mode === 'overlay';
   const showBackground = mode !== 'overlay';
 
+  // Load Google Fonts dynamically based on brand settings
+  const headingFont = project.brand.fontPreferences?.heading || 'Inter';
+  const bodyFont = project.brand.fontPreferences?.body || 'Inter';
+  const priceFont = project.brand.fontPreferences?.price || 'Inter';
+  
+  const uniqueFonts = Array.from(new Set([headingFont, bodyFont, priceFont]));
+  
   return (
     <>
       <style>{`
@@ -78,6 +85,16 @@ export default async function RenderCanvasPage({
           background-color: transparent !important;
         }
       `}</style>
+      {uniqueFonts.map((font) => (
+        /* eslint-disable-next-line @next/next/no-page-custom-font */
+        <link
+          key={font}
+          rel="stylesheet"
+          href={`https://fonts.googleapis.com/css2?family=${encodeURIComponent(
+            font
+          )}:wght@400;500;700&display=swap`}
+        />
+      ))}
       <div
         style={{
           margin: 0,

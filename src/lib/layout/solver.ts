@@ -9,7 +9,10 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
   const { canvas, brand, content, layout } = project;
   const elements: LayoutElement[] = [];
 
-  const safeMargin = canvas.safeMarginPx;
+  let safeMargin = canvas.safeMarginPx;
+  if (canvas.widthPx - 2 * safeMargin <= 0 || canvas.heightPx - 2 * safeMargin <= 0) {
+    safeMargin = Math.min(canvas.widthPx, canvas.heightPx) * 0.05;
+  }
   const safeX = safeMargin;
   const safeY = safeMargin;
   const safeWidth = canvas.widthPx - 2 * safeMargin;

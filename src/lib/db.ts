@@ -11,10 +11,16 @@ function createPrismaClient() {
     url: 'file:dev.db',
   });
   
-  return new PrismaClient({
+  const client = new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
+
+  // Optimize SQLite for concurrent environments
+  client.$executeRawUnsafe('PRAGMA journal_mode = WAL;').catch(console.error);
+  client.$executeRawUnsafe('PRAGMA synchronous = NORMAL;').catch(console.error);
+
+  return client;
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

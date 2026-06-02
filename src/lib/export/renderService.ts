@@ -1,9 +1,20 @@
-import { chromium } from '@playwright/test';
+import { chromium, type Browser, type BrowserContext } from '@playwright/test';
 import { prisma } from '../db';
 import { ProjectSchema } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
 import { fitText } from '../layout/textFit';
 import { getElementText } from '../../components/renderer/BackgroundRenderer';
+
+let sharedBrowser: Browser | null = null;
+
+async function getSharedBrowser(): Promise<Browser> {
+  if (!sharedBrowser || !sharedBrowser.isConnected()) {
+    sharedBrowser = await chromium.launch({
+      headless: true,
+    });
+  }
+  return sharedBrowser;
+}
 
 /**
  * Renders the flyer layout as a PNG binary Buffer using headless Chromium via Playwright.
@@ -39,14 +50,13 @@ export async function renderLayoutPng(
 
   const { widthPx, heightPx } = projectResult.data.canvas;
 
-  // 2. Launch headless Chromium browser
-  const browser = await chromium.launch({
-    headless: true,
-  });
+  // 2. Get shared headless Chromium browser
+  const browser = await getSharedBrowser();
+  let context: BrowserContext | undefined = undefined;
 
   try {
     // 3. Create context with exact viewport size
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: {
         width: widthPx,
         height: heightPx,
@@ -84,8 +94,10 @@ export async function renderLayoutPng(
 
     return pngBuffer;
   } finally {
-    // 8. Always close browser
-    await browser.close();
+    // 8. Always close context
+    if (context) {
+      await context.close();
+    }
   }
 }
 
@@ -117,12 +129,11 @@ export async function renderLayoutImages(
 
   const { widthPx, heightPx } = projectResult.data.canvas;
 
-  const browser = await chromium.launch({
-    headless: true,
-  });
+  const browser = await getSharedBrowser();
+  let context: BrowserContext | undefined = undefined;
 
   try {
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: {
         width: widthPx,
         height: heightPx,
@@ -165,7 +176,9 @@ export async function renderLayoutImages(
       backgroundOnly: bgBuffer,
     };
   } finally {
-    await browser.close();
+    if (context) {
+      await context.close();
+    }
   }
 }
 
@@ -199,14 +212,13 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
 
   const { widthPx, heightPx } = projectResult.data.canvas;
 
-  // 2. Launch headless Chromium browser
-  const browser = await chromium.launch({
-    headless: true,
-  });
+  // 2. Get shared headless Chromium browser
+  const browser = await getSharedBrowser();
+  let context: BrowserContext | undefined = undefined;
 
   try {
     // 3. Create context with exact viewport size
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: {
         width: widthPx,
         height: heightPx,
@@ -245,8 +257,10 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
 
     return pngBuffer;
   } finally {
-    // 8. Always close browser
-    await browser.close();
+    // 8. Always close context
+    if (context) {
+      await context.close();
+    }
   }
 }
 
@@ -397,14 +411,13 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
 
   const { widthPx, heightPx } = projectResult.data.canvas;
 
-  // 2. Launch headless Chromium browser
-  const browser = await chromium.launch({
-    headless: true,
-  });
+  // 2. Get shared browser instance
+  const browser = await getSharedBrowser();
+  let context: BrowserContext | undefined = undefined;
 
   try {
     // 3. Create context with exact viewport size
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: {
         width: widthPx,
         height: heightPx,
@@ -446,8 +459,9 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
 
     return pdfBuffer;
   } finally {
-    // 8. Always close browser
-    await browser.close();
+    // 8. Always close context
+    if (context) {
+      await context.close();
+    }
   }
 }
-

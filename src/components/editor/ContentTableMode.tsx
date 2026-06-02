@@ -43,8 +43,10 @@ interface ItemRowProps {
   item: Item;
 }
 
-const SortableItemRow: React.FC<ItemRowProps> = ({ item }) => {
-  const { updateItem, selectedElementId, selectElement } = useEditorStore();
+const SortableItemRow = React.memo<ItemRowProps>(({ item }) => {
+  const updateItem = useEditorStore((s) => s.updateItem);
+  const selectElement = useEditorStore((s) => s.selectElement);
+  const isSelected = useEditorStore((s) => s.selectedElementId === item.id);
   
   const {
     attributes,
@@ -60,8 +62,6 @@ const SortableItemRow: React.FC<ItemRowProps> = ({ item }) => {
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-
-  const isSelected = selectedElementId === item.id;
 
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.trim();
@@ -163,7 +163,8 @@ const SortableItemRow: React.FC<ItemRowProps> = ({ item }) => {
       </td>
     </tr>
   );
-};
+});
+SortableItemRow.displayName = 'SortableItemRow';
 
 // Sortable Section Wrapper
 interface SectionWrapperProps {
@@ -171,8 +172,10 @@ interface SectionWrapperProps {
   children: React.ReactNode;
 }
 
-const SortableSectionWrapper: React.FC<SectionWrapperProps> = ({ section, children }) => {
-  const { updateSection, selectedElementId, selectElement } = useEditorStore();
+const SortableSectionWrapper = React.memo<SectionWrapperProps>(({ section, children }) => {
+  const updateSection = useEditorStore((s) => s.updateSection);
+  const selectElement = useEditorStore((s) => s.selectElement);
+  const isSelected = useEditorStore((s) => s.selectedElementId === section.id);
 
   const {
     attributes,
@@ -188,8 +191,6 @@ const SortableSectionWrapper: React.FC<SectionWrapperProps> = ({ section, childr
     transition,
     opacity: isDragging ? 0.5 : 1,
   };
-
-  const isSelected = selectedElementId === section.id;
 
   return (
     <div
@@ -255,7 +256,8 @@ const SortableSectionWrapper: React.FC<SectionWrapperProps> = ({ section, childr
       </div>
     </div>
   );
-};
+});
+SortableSectionWrapper.displayName = 'SortableSectionWrapper';
 
 export const ContentTableMode: React.FC = () => {
   const { project, reorderSections, reorderItems } = useEditorStore();
