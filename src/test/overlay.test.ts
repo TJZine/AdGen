@@ -219,4 +219,37 @@ describe('Export Overlay API Route', () => {
     // Ensure it compiles and is syntactically valid XML/SVG
     expect(svgString).toContain('<text');
   });
+
+  it('sanitizes unsafe SVG attribute values when generating overlay text', async () => {
+    const { renderLayoutOverlaySvg: actualRenderSvg } = await vi.importActual<
+      typeof import('@/lib/export/renderService')
+    >('@/lib/export/renderService');
+
+    const maliciousProject = {
+      ...mockProject,
+      brand: {
+        ...mockProject.brand,
+        fontPreferences: {
+          heading: 'Impact" /><script>alert(1)</script><text x="0',
+          body: 'Arial" /><script>alert(1)</script><text x="0',
+          price: 'Impact',
+        },
+      },
+    };
+
+    vi.mocked(prisma.project.findUnique).mockResolvedValueOnce({
+      id: 'uuid-123',
+      name: 'Test Project',
+      type: 'inventory_board',
+      contentJson: JSON.stringify(maliciousProject),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as unknown as PrismaProject);
+
+    const svgString = await actualRenderSvg('uuid-123');
+
+    expect(svgString).not.toContain('<script>');
+    expect(svgString).not.toContain('font-family="Arial" /><script>');
+    expect(svgString).toContain('font-family="Arial"');
+  });
 });

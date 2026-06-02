@@ -38,6 +38,30 @@ const DragHandleIcon = () => (
   </svg>
 );
 
+const areItemsEqual = (prev: Item, next: Item): boolean => {
+  return (
+    prev.id === next.id &&
+    prev.sectionId === next.sectionId &&
+    prev.title === next.title &&
+    prev.subtitle === next.subtitle &&
+    prev.description === next.description &&
+    prev.price === next.price &&
+    prev.priceDisplay === next.priceDisplay &&
+    prev.salePrice === next.salePrice &&
+    prev.badge === next.badge &&
+    prev.imageAssetId === next.imageAssetId &&
+    prev.priority === next.priority &&
+    prev.visibility === next.visibility &&
+    prev.layoutHints?.cardSize === next.layoutHints?.cardSize &&
+    prev.layoutHints?.imageFit === next.layoutHints?.imageFit &&
+    prev.layoutHints?.preferredAspectRatio === next.layoutHints?.preferredAspectRatio
+  );
+};
+
+const areItemPropsEqual = (prevProps: ItemRowProps, nextProps: ItemRowProps): boolean => {
+  return areItemsEqual(prevProps.item, nextProps.item);
+};
+
 // Sortable Row for Items
 interface ItemRowProps {
   item: Item;
@@ -163,8 +187,33 @@ const SortableItemRow = React.memo<ItemRowProps>(({ item }) => {
       </td>
     </tr>
   );
-});
+}, areItemPropsEqual);
 SortableItemRow.displayName = 'SortableItemRow';
+
+const areSectionsEqual = (prevProps: SectionWrapperProps, nextProps: SectionWrapperProps): boolean => {
+  const prev = prevProps.section;
+  const next = nextProps.section;
+
+  if (
+    prev.id !== next.id ||
+    prev.title !== next.title ||
+    prev.subtitle !== next.subtitle ||
+    prev.priority !== next.priority ||
+    prev.layoutHint !== next.layoutHint ||
+    prev.order !== next.order
+  ) {
+    return false;
+  }
+
+  if (prev.items.length !== next.items.length) return false;
+  for (let i = 0; i < prev.items.length; i++) {
+    if (!areItemsEqual(prev.items[i], next.items[i])) {
+      return false;
+    }
+  }
+
+  return true;
+};
 
 // Sortable Section Wrapper
 interface SectionWrapperProps {
@@ -256,11 +305,13 @@ const SortableSectionWrapper = React.memo<SectionWrapperProps>(({ section, child
       </div>
     </div>
   );
-});
+}, areSectionsEqual);
 SortableSectionWrapper.displayName = 'SortableSectionWrapper';
 
 export const ContentTableMode: React.FC = () => {
-  const { project, reorderSections, reorderItems } = useEditorStore();
+  const sections = useEditorStore((state) => state.project.content.sections);
+  const reorderSections = useEditorStore((state) => state.reorderSections);
+  const reorderItems = useEditorStore((state) => state.reorderItems);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -277,7 +328,6 @@ export const ContentTableMode: React.FC = () => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const sections = project.content.sections;
     const isSectionDrag = sections.some((s) => s.id === active.id);
 
     if (isSectionDrag) {
@@ -314,8 +364,6 @@ export const ContentTableMode: React.FC = () => {
       }
     }
   };
-
-  const sections = project.content.sections || [];
 
   return (
     <div className="flex-1 overflow-y-auto p-6 bg-zinc-50 flex flex-col gap-6">

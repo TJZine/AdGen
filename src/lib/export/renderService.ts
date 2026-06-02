@@ -7,6 +7,39 @@ import { getElementText } from '../../components/renderer/BackgroundRenderer';
 
 let sharedBrowser: Browser | null = null;
 
+class ConcurrencyLimiter {
+  private limit: number;
+  private activeCount: number = 0;
+  private queue: Array<() => void> = [];
+
+  constructor(limit: number) {
+    this.limit = limit;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.activeCount < this.limit) {
+      this.activeCount++;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.queue.push(resolve);
+    });
+  }
+
+  release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) {
+        next();
+      }
+    } else {
+      this.activeCount--;
+    }
+  }
+}
+
+const limiter = new ConcurrencyLimiter(3);
+
 async function getSharedBrowser(): Promise<Browser> {
   if (!sharedBrowser || !sharedBrowser.isConnected()) {
     sharedBrowser = await chromium.launch({
@@ -27,77 +60,82 @@ export async function renderLayoutPng(
   projectId: string,
   mode: 'full' | 'background_only'
 ): Promise<Buffer> {
-  // 1. Fetch project dimensions from database
-  const projectRecord = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
-
-  if (!projectRecord) {
-    throw new Error(`Project with ID ${projectId} not found`);
-  }
-
-  let rawProject: unknown;
+  await limiter.acquire();
   try {
-    rawProject = JSON.parse(projectRecord.contentJson);
-  } catch {
-    throw new Error(`Failed to parse contentJson for project ${projectId}`);
-  }
-
-  const projectResult = ProjectSchema.safeParse(rawProject);
-  if (!projectResult.success) {
-    throw new Error(`Project validation failed: ${projectResult.error.message}`);
-  }
-
-  const { widthPx, heightPx } = projectResult.data.canvas;
-
-  // 2. Get shared headless Chromium browser
-  const browser = await getSharedBrowser();
-  let context: BrowserContext | undefined = undefined;
-
-  try {
-    // 3. Create context with exact viewport size
-    context = await browser.newContext({
-      viewport: {
-        width: widthPx,
-        height: heightPx,
-      },
-      deviceScaleFactor: 1,
+    // 1. Fetch project dimensions from database
+    const projectRecord = await prisma.project.findUnique({
+      where: { id: projectId },
     });
 
-    const page = await context.newPage();
-
-    // 4. Construct URL with parameters (fall back to localhost:3000 if env not set)
-    const baseUrl =
-      process.env.RENDER_BASE_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
-    const url = `${baseUrl}/render-canvas?id=${projectId}&mode=${mode}`;
-
-    // 5. Navigate to rendering route and wait until network is idle
-    await page.goto(url, {
-      waitUntil: 'networkidle',
-    });
-
-    // Wait for web fonts to load
-    await page.evaluate(() => document.fonts.ready);
-
-    // 6. Ensure the main canvas is visible
-    await page.waitForSelector('[data-testid="canvas-preview-container"]', {
-      state: 'visible',
-      timeout: 10000,
-    });
-
-    // 7. Take PNG screenshot of the canvas element specifically
-    const pngBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
-      type: 'png',
-    });
-
-    return pngBuffer;
-  } finally {
-    // 8. Always close context
-    if (context) {
-      await context.close();
+    if (!projectRecord) {
+      throw new Error(`Project with ID ${projectId} not found`);
     }
+
+    let rawProject: unknown;
+    try {
+      rawProject = JSON.parse(projectRecord.contentJson);
+    } catch {
+      throw new Error(`Failed to parse contentJson for project ${projectId}`);
+    }
+
+    const projectResult = ProjectSchema.safeParse(rawProject);
+    if (!projectResult.success) {
+      throw new Error(`Project validation failed: ${projectResult.error.message}`);
+    }
+
+    const { widthPx, heightPx } = projectResult.data.canvas;
+
+    // 2. Get shared headless Chromium browser
+    const browser = await getSharedBrowser();
+    let context: BrowserContext | undefined = undefined;
+
+    try {
+      // 3. Create context with exact viewport size
+      context = await browser.newContext({
+        viewport: {
+          width: widthPx,
+          height: heightPx,
+        },
+        deviceScaleFactor: 1,
+      });
+
+      const page = await context.newPage();
+
+      // 4. Construct URL with parameters (fall back to localhost:3000 if env not set)
+      const baseUrl =
+        process.env.RENDER_BASE_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+      const url = `${baseUrl}/render-canvas?id=${projectId}&mode=${mode}`;
+
+      // 5. Navigate to rendering route and wait until network is idle
+      await page.goto(url, {
+        waitUntil: 'networkidle',
+      });
+
+      // Wait for web fonts to load
+      await page.evaluate(() => document.fonts.ready);
+
+      // 6. Ensure the main canvas is visible
+      await page.waitForSelector('[data-testid="canvas-preview-container"]', {
+        state: 'visible',
+        timeout: 10000,
+      });
+
+      // 7. Take PNG screenshot of the canvas element specifically
+      const pngBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
+        type: 'png',
+      });
+
+      return pngBuffer;
+    } finally {
+      // 8. Always close context
+      if (context) {
+        await context.close();
+      }
+    }
+  } finally {
+    limiter.release();
   }
 }
 
@@ -107,78 +145,83 @@ export async function renderLayoutPng(
 export async function renderLayoutImages(
   projectId: string
 ): Promise<{ full: Buffer; backgroundOnly: Buffer }> {
-  const projectRecord = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
-
-  if (!projectRecord) {
-    throw new Error(`Project with ID ${projectId} not found`);
-  }
-
-  let rawProject: unknown;
+  await limiter.acquire();
   try {
-    rawProject = JSON.parse(projectRecord.contentJson);
-  } catch {
-    throw new Error(`Failed to parse contentJson for project ${projectId}`);
-  }
-
-  const projectResult = ProjectSchema.safeParse(rawProject);
-  if (!projectResult.success) {
-    throw new Error(`Project validation failed: ${projectResult.error.message}`);
-  }
-
-  const { widthPx, heightPx } = projectResult.data.canvas;
-
-  const browser = await getSharedBrowser();
-  let context: BrowserContext | undefined = undefined;
-
-  try {
-    context = await browser.newContext({
-      viewport: {
-        width: widthPx,
-        height: heightPx,
-      },
-      deviceScaleFactor: 1,
+    const projectRecord = await prisma.project.findUnique({
+      where: { id: projectId },
     });
 
-    const page = await context.newPage();
-    const baseUrl =
-      process.env.RENDER_BASE_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
-
-    // 1. Render and capture full layout
-    const urlFull = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
-    await page.goto(urlFull, { waitUntil: 'networkidle' });
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForSelector('[data-testid="canvas-preview-container"]', {
-      state: 'visible',
-      timeout: 10000,
-    });
-    const fullBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
-      type: 'png',
-    });
-
-    // 2. Render and capture background-only layout
-    const urlBg = `${baseUrl}/render-canvas?id=${projectId}&mode=background_only`;
-    await page.goto(urlBg, { waitUntil: 'networkidle' });
-    await page.evaluate(() => document.fonts.ready);
-    await page.waitForSelector('[data-testid="canvas-preview-container"]', {
-      state: 'visible',
-      timeout: 10000,
-    });
-    const bgBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
-      type: 'png',
-    });
-
-    return {
-      full: fullBuffer,
-      backgroundOnly: bgBuffer,
-    };
-  } finally {
-    if (context) {
-      await context.close();
+    if (!projectRecord) {
+      throw new Error(`Project with ID ${projectId} not found`);
     }
+
+    let rawProject: unknown;
+    try {
+      rawProject = JSON.parse(projectRecord.contentJson);
+    } catch {
+      throw new Error(`Failed to parse contentJson for project ${projectId}`);
+    }
+
+    const projectResult = ProjectSchema.safeParse(rawProject);
+    if (!projectResult.success) {
+      throw new Error(`Project validation failed: ${projectResult.error.message}`);
+    }
+
+    const { widthPx, heightPx } = projectResult.data.canvas;
+
+    const browser = await getSharedBrowser();
+    let context: BrowserContext | undefined = undefined;
+
+    try {
+      context = await browser.newContext({
+        viewport: {
+          width: widthPx,
+          height: heightPx,
+        },
+        deviceScaleFactor: 1,
+      });
+
+      const page = await context.newPage();
+      const baseUrl =
+        process.env.RENDER_BASE_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+
+      // 1. Render and capture full layout
+      const urlFull = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
+      await page.goto(urlFull, { waitUntil: 'networkidle' });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForSelector('[data-testid="canvas-preview-container"]', {
+        state: 'visible',
+        timeout: 10000,
+      });
+      const fullBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
+        type: 'png',
+      });
+
+      // 2. Render and capture background-only layout
+      const urlBg = `${baseUrl}/render-canvas?id=${projectId}&mode=background_only`;
+      await page.goto(urlBg, { waitUntil: 'networkidle' });
+      await page.evaluate(() => document.fonts.ready);
+      await page.waitForSelector('[data-testid="canvas-preview-container"]', {
+        state: 'visible',
+        timeout: 10000,
+      });
+      const bgBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
+        type: 'png',
+      });
+
+      return {
+        full: fullBuffer,
+        backgroundOnly: bgBuffer,
+      };
+    } finally {
+      if (context) {
+        await context.close();
+      }
+    }
+  } finally {
+    limiter.release();
   }
 }
 
@@ -189,78 +232,83 @@ export async function renderLayoutImages(
  * @returns Promise<Buffer> - The transparent PNG image as a binary buffer
  */
 export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer> {
-  // 1. Fetch project dimensions from database
-  const projectRecord = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
-
-  if (!projectRecord) {
-    throw new Error(`Project with ID ${projectId} not found`);
-  }
-
-  let rawProject: unknown;
+  await limiter.acquire();
   try {
-    rawProject = JSON.parse(projectRecord.contentJson);
-  } catch {
-    throw new Error(`Failed to parse contentJson for project ${projectId}`);
-  }
-
-  const projectResult = ProjectSchema.safeParse(rawProject);
-  if (!projectResult.success) {
-    throw new Error(`Project validation failed: ${projectResult.error.message}`);
-  }
-
-  const { widthPx, heightPx } = projectResult.data.canvas;
-
-  // 2. Get shared headless Chromium browser
-  const browser = await getSharedBrowser();
-  let context: BrowserContext | undefined = undefined;
-
-  try {
-    // 3. Create context with exact viewport size
-    context = await browser.newContext({
-      viewport: {
-        width: widthPx,
-        height: heightPx,
-      },
-      deviceScaleFactor: 1,
+    // 1. Fetch project dimensions from database
+    const projectRecord = await prisma.project.findUnique({
+      where: { id: projectId },
     });
 
-    const page = await context.newPage();
-
-    // 4. Construct URL with parameters (fall back to localhost:3000 if env not set)
-    const baseUrl =
-      process.env.RENDER_BASE_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
-    const url = `${baseUrl}/render-canvas?id=${projectId}&mode=overlay`;
-
-    // 5. Navigate to rendering route and wait until network is idle
-    await page.goto(url, {
-      waitUntil: 'networkidle',
-    });
-
-    // Wait for web fonts to load
-    await page.evaluate(() => document.fonts.ready);
-
-    // 6. Ensure the main canvas is visible
-    await page.waitForSelector('[data-testid="canvas-preview-container"]', {
-      state: 'visible',
-      timeout: 10000,
-    });
-
-    // 7. Take PNG screenshot of the canvas element specifically, omitting background for transparency
-    const pngBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
-      type: 'png',
-      omitBackground: true,
-    });
-
-    return pngBuffer;
-  } finally {
-    // 8. Always close context
-    if (context) {
-      await context.close();
+    if (!projectRecord) {
+      throw new Error(`Project with ID ${projectId} not found`);
     }
+
+    let rawProject: unknown;
+    try {
+      rawProject = JSON.parse(projectRecord.contentJson);
+    } catch {
+      throw new Error(`Failed to parse contentJson for project ${projectId}`);
+    }
+
+    const projectResult = ProjectSchema.safeParse(rawProject);
+    if (!projectResult.success) {
+      throw new Error(`Project validation failed: ${projectResult.error.message}`);
+    }
+
+    const { widthPx, heightPx } = projectResult.data.canvas;
+
+    // 2. Get shared headless Chromium browser
+    const browser = await getSharedBrowser();
+    let context: BrowserContext | undefined = undefined;
+
+    try {
+      // 3. Create context with exact viewport size
+      context = await browser.newContext({
+        viewport: {
+          width: widthPx,
+          height: heightPx,
+        },
+        deviceScaleFactor: 1,
+      });
+
+      const page = await context.newPage();
+
+      // 4. Construct URL with parameters (fall back to localhost:3000 if env not set)
+      const baseUrl =
+        process.env.RENDER_BASE_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+      const url = `${baseUrl}/render-canvas?id=${projectId}&mode=overlay`;
+
+      // 5. Navigate to rendering route and wait until network is idle
+      await page.goto(url, {
+        waitUntil: 'networkidle',
+      });
+
+      // Wait for web fonts to load
+      await page.evaluate(() => document.fonts.ready);
+
+      // 6. Ensure the main canvas is visible
+      await page.waitForSelector('[data-testid="canvas-preview-container"]', {
+        state: 'visible',
+        timeout: 10000,
+      });
+
+      // 7. Take PNG screenshot of the canvas element specifically, omitting background for transparency
+      const pngBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
+        type: 'png',
+        omitBackground: true,
+      });
+
+      return pngBuffer;
+    } finally {
+      // 8. Always close context
+      if (context) {
+        await context.close();
+      }
+    }
+  } finally {
+    limiter.release();
   }
 }
 
@@ -331,9 +379,15 @@ export async function renderLayoutOverlaySvg(projectId: string): Promise<string>
     const fontSize = fit.fontSize;
 
     // Style values matching OverlayRenderer
-    const color = el.style?.color || solvedProject.brand.colors.primary;
-    const fontFamily = el.style?.fontFamily || solvedProject.brand.fontPreferences.body;
-    const fontWeight = el.style?.fontWeight || (el.type === 'section_header' ? 'bold' : 'normal');
+    const color = sanitizeSvgColor(
+      el.style?.color || solvedProject.brand.colors.primary
+    );
+    const fontFamily = sanitizeSvgFontFamily(
+      el.style?.fontFamily || solvedProject.brand.fontPreferences.body
+    );
+    const fontWeight = sanitizeSvgFontWeight(
+      el.style?.fontWeight || (el.type === 'section_header' ? 'bold' : 'normal')
+    );
 
     // Calculate vertical alignment
     const totalTextHeight = fit.lines.length * fontSize * 1.2;
@@ -357,7 +411,7 @@ export async function renderLayoutOverlaySvg(projectId: string): Promise<string>
       const y = startY + idx * fontSize * 1.2;
       const escapedLine = escapeSvg(line);
       svgLines.push(
-        `  <text x="${x}" y="${y}" font-family="${fontFamily}" font-size="${fontSize}px" font-weight="${fontWeight}" fill="${color}" text-anchor="${textAnchor}">${escapedLine}</text>`
+        `  <text x="${x}" y="${y}" font-family="${escapeSvgAttribute(fontFamily)}" font-size="${fontSize}px" font-weight="${escapeSvgAttribute(fontWeight)}" fill="${escapeSvgAttribute(color)}" text-anchor="${textAnchor}">${escapedLine}</text>`
       );
     }
   }
@@ -372,6 +426,17 @@ export async function renderLayoutOverlaySvg(projectId: string): Promise<string>
   return svgOutput;
 }
 
+const DEFAULT_SVG_FONT_FAMILY = 'Arial';
+const DEFAULT_SVG_FONT_WEIGHT = 'normal';
+const DEFAULT_SVG_COLOR = '#000000';
+
+const SAFE_SVG_FONT_FAMILY =
+  /^[A-Za-z0-9 -]{1,100}(,\s*[A-Za-z0-9 -]{1,100})*$/;
+const SAFE_SVG_FONT_WEIGHT =
+  /^(normal|bold|bolder|lighter|[1-9]00)$/;
+const SAFE_SVG_COLOR =
+  /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/;
+
 function escapeSvg(text: string): string {
   return text
     .replace(/&/g, '&amp;')
@@ -381,6 +446,43 @@ function escapeSvg(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
+function escapeSvgAttribute(value: string): string {
+  return escapeSvg(value);
+}
+
+function sanitizeSvgFontFamily(fontFamily?: string): string {
+  const trimmed = fontFamily?.trim();
+  if (!trimmed) {
+    return DEFAULT_SVG_FONT_FAMILY;
+  }
+
+  return SAFE_SVG_FONT_FAMILY.test(trimmed)
+    ? trimmed
+    : DEFAULT_SVG_FONT_FAMILY;
+}
+
+function sanitizeSvgFontWeight(fontWeight?: string): string {
+  const trimmed = fontWeight?.trim();
+  if (!trimmed) {
+    return DEFAULT_SVG_FONT_WEIGHT;
+  }
+
+  return SAFE_SVG_FONT_WEIGHT.test(trimmed)
+    ? trimmed
+    : DEFAULT_SVG_FONT_WEIGHT;
+}
+
+function sanitizeSvgColor(color?: string): string {
+  const trimmed = color?.trim();
+  if (!trimmed) {
+    return DEFAULT_SVG_COLOR;
+  }
+
+  return SAFE_SVG_COLOR.test(trimmed)
+    ? trimmed
+    : DEFAULT_SVG_COLOR;
+}
+
 /**
  * Renders the flyer layout as a print-ready vector PDF using headless Chromium via Playwright.
  *
@@ -388,80 +490,85 @@ function escapeSvg(text: string): string {
  * @returns Promise<Buffer> - The PDF file as a binary buffer
  */
 export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
-  // 1. Fetch project dimensions from database
-  const projectRecord = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
-
-  if (!projectRecord) {
-    throw new Error(`Project with ID ${projectId} not found`);
-  }
-
-  let rawProject: unknown;
+  await limiter.acquire();
   try {
-    rawProject = JSON.parse(projectRecord.contentJson);
-  } catch {
-    throw new Error(`Failed to parse contentJson for project ${projectId}`);
-  }
-
-  const projectResult = ProjectSchema.safeParse(rawProject);
-  if (!projectResult.success) {
-    throw new Error(`Project validation failed: ${projectResult.error.message}`);
-  }
-
-  const { widthPx, heightPx } = projectResult.data.canvas;
-
-  // 2. Get shared browser instance
-  const browser = await getSharedBrowser();
-  let context: BrowserContext | undefined = undefined;
-
-  try {
-    // 3. Create context with exact viewport size
-    context = await browser.newContext({
-      viewport: {
-        width: widthPx,
-        height: heightPx,
-      },
-      deviceScaleFactor: 1,
+    // 1. Fetch project dimensions from database
+    const projectRecord = await prisma.project.findUnique({
+      where: { id: projectId },
     });
 
-    const page = await context.newPage();
-
-    // 4. Construct URL with parameters
-    const baseUrl =
-      process.env.RENDER_BASE_URL ||
-      process.env.NEXT_PUBLIC_APP_URL ||
-      'http://localhost:3000';
-    const url = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
-
-    // 5. Navigate to rendering route and wait until network is idle
-    await page.goto(url, {
-      waitUntil: 'networkidle',
-    });
-
-    // Wait for web fonts to load
-    await page.evaluate(() => document.fonts.ready);
-
-    // 6. Ensure the main canvas is visible
-    await page.waitForSelector('[data-testid="canvas-preview-container"]', {
-      state: 'visible',
-      timeout: 10000,
-    });
-
-    // 7. Run page.pdf with exact dimensions in pixels
-    const pdfBuffer = await page.pdf({
-      width: `${widthPx}px`,
-      height: `${heightPx}px`,
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
-    });
-
-    return pdfBuffer;
-  } finally {
-    // 8. Always close context
-    if (context) {
-      await context.close();
+    if (!projectRecord) {
+      throw new Error(`Project with ID ${projectId} not found`);
     }
+
+    let rawProject: unknown;
+    try {
+      rawProject = JSON.parse(projectRecord.contentJson);
+    } catch {
+      throw new Error(`Failed to parse contentJson for project ${projectId}`);
+    }
+
+    const projectResult = ProjectSchema.safeParse(rawProject);
+    if (!projectResult.success) {
+      throw new Error(`Project validation failed: ${projectResult.error.message}`);
+    }
+
+    const { widthPx, heightPx } = projectResult.data.canvas;
+
+    // 2. Get shared browser instance
+    const browser = await getSharedBrowser();
+    let context: BrowserContext | undefined = undefined;
+
+    try {
+      // 3. Create context with exact viewport size
+      context = await browser.newContext({
+        viewport: {
+          width: widthPx,
+          height: heightPx,
+        },
+        deviceScaleFactor: 1,
+      });
+
+      const page = await context.newPage();
+
+      // 4. Construct URL with parameters
+      const baseUrl =
+        process.env.RENDER_BASE_URL ||
+        process.env.NEXT_PUBLIC_APP_URL ||
+        'http://localhost:3000';
+      const url = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
+
+      // 5. Navigate to rendering route and wait until network is idle
+      await page.goto(url, {
+        waitUntil: 'networkidle',
+      });
+
+      // Wait for web fonts to load
+      await page.evaluate(() => document.fonts.ready);
+
+      // 6. Ensure the main canvas is visible
+      await page.waitForSelector('[data-testid="canvas-preview-container"]', {
+        state: 'visible',
+        timeout: 10000,
+      });
+
+      // 7. Run page.pdf with exact dimensions in pixels
+      const pdfBuffer = await page.pdf({
+        width: `${widthPx}px`,
+        height: `${heightPx}px`,
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
+      });
+
+      return pdfBuffer;
+    } finally {
+      // 8. Always close context
+      if (context) {
+        await context.close();
+      }
+    }
+  } finally {
+    limiter.release();
   }
 }

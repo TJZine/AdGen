@@ -86,7 +86,6 @@ export default async function RenderCanvasPage({
         }
       `}</style>
       {uniqueFonts.map((font) => (
-        /* eslint-disable-next-line @next/next/no-page-custom-font */
         <link
           key={font}
           rel="stylesheet"
