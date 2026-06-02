@@ -7,6 +7,7 @@ import { RightInspector } from './RightInspector';
 import { ContentTableMode } from './ContentTableMode';
 import { BackgroundRenderer } from '../renderer/BackgroundRenderer';
 import { OverlayRenderer } from '../renderer/OverlayRenderer';
+import { ContrastGuard } from './ContrastGuard';
 import { Project, Asset } from '@/lib/schemas/project';
 
 interface EditorWorkspaceProps {
@@ -200,6 +201,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
               >
                 <BackgroundRenderer project={project} assets={assets} />
                 <OverlayRenderer project={project} />
+                <ContrastGuard project={project} assets={assets} />
               </div>
             </div>
           </div>

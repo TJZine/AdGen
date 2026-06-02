@@ -7,6 +7,26 @@ export interface OverlayRendererProps {
   project: Project;
 }
 
+function isDarkColor(hex: string): boolean {
+  if (!hex) return true;
+  const cleanHex = hex.replace('#', '');
+  if (cleanHex.length === 3) {
+    const r = parseInt(cleanHex[0] + cleanHex[0], 16);
+    const g = parseInt(cleanHex[1] + cleanHex[1], 16);
+    const b = parseInt(cleanHex[2] + cleanHex[2], 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq < 128;
+  }
+  if (cleanHex.length === 6 || cleanHex.length === 8) {
+    const r = parseInt(cleanHex.substring(0, 2), 16);
+    const g = parseInt(cleanHex.substring(2, 4), 16);
+    const b = parseInt(cleanHex.substring(4, 6), 16);
+    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+    return yiq < 128;
+  }
+  return true;
+}
+
 export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => {
   const { canvas, brand, layout } = project;
   const elements = layout.elements || [];
@@ -51,6 +71,24 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
         const textAlign = el.style.textAlign || 'left';
         const fontWeight = el.style.fontWeight || (el.type === 'section_header' ? 'bold' : 'normal');
 
+        const preset = project.polishedBackground?.legibilityPreset ?? 'none';
+        const outlineColor = isDarkColor(color) ? '#FFFFFF' : '#000000';
+
+        const containerShadowStyle = preset === 'drop_shadow' ? {
+          textShadow: '1px 2px 4px rgba(0,0,0,0.85)',
+        } : {};
+
+        const textStrokeStyle = preset === 'text_outline' ? {
+          WebkitTextStroke: `1px ${outlineColor}`,
+        } as React.CSSProperties : {};
+
+        const backingPlateStyle = preset === 'backing_plate' ? {
+          backgroundColor: isDarkColor(color) ? 'rgba(255, 255, 255, 0.7)' : 'rgba(0, 0, 0, 0.5)',
+          padding: '2px 8px',
+          borderRadius: '4px',
+          display: 'inline-block',
+        } as React.CSSProperties : {};
+
         return (
           <div
             key={el.id}
@@ -71,11 +109,22 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
+              ...containerShadowStyle,
             }}
           >
             {fit.lines.map((line, idx) => (
-              <div key={idx} style={{ whiteSpace: 'nowrap' }}>
-                {line}
+              <div
+                key={idx}
+                style={{
+                  whiteSpace: 'nowrap',
+                  margin: preset === 'backing_plate' ? '2px 0' : '0',
+                }}
+              >
+                {preset === 'backing_plate' ? (
+                  <span style={backingPlateStyle}>{line}</span>
+                ) : (
+                  <span style={textStrokeStyle}>{line}</span>
+                )}
               </div>
             ))}
           </div>

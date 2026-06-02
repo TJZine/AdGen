@@ -17,6 +17,42 @@ export const RightInspector: React.FC = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  const polishedBg = project.polishedBackground || {
+    assetId: null,
+    fitMode: 'cover',
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
+    opacity: 1,
+    legibilityPreset: 'none',
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const newAsset = await res.json();
+
+      useEditorStore.setState((state) => ({
+        assets: [...state.assets, newAsset],
+      }));
+
+      updateProjectField('polishedBackground.assetId', newAsset.id);
+    } catch (err) {
+      console.error('Failed to upload background:', err);
+      alert('Failed to upload image. Please ensure it is a valid JPEG, PNG, or WebP.');
+    }
+  };
+
   // 1. Identify selected element type and find its reference
   let selectedType: 'item' | 'section' | 'general' = 'general';
   let selectedItem: Item | null = null;
@@ -397,6 +433,138 @@ export const RightInspector: React.FC = () => {
                 </option>
               ))}
           </select>
+        </div>
+
+        {/* Polished Background Settings */}
+        <div className="flex flex-col gap-3 mt-4 border-t border-zinc-200 pt-4">
+          <h3 className="font-bold text-zinc-950 text-sm">Polished Background</h3>
+          
+          <div className="flex flex-col gap-1">
+            <label className="font-semibold text-zinc-900">Background Image</label>
+            <select
+              value={polishedBg.assetId || ''}
+              onChange={(e) => updateProjectField('polishedBackground.assetId', e.target.value || null)}
+              className="border border-zinc-300 bg-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+              data-testid="bg-asset-select"
+            >
+              <option value="">No Background (Rough Layout)</option>
+              {assets
+                .filter((a) => a.type === 'image' || a.type === 'logo')
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} ({a.filePath.split('/').pop()})
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="font-semibold text-zinc-900">Upload New Background</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleUpload}
+              className="text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 cursor-pointer"
+              data-testid="bg-file-upload"
+            />
+          </div>
+
+          {polishedBg.assetId && (
+            <>
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-zinc-900">Fit Mode</label>
+                <select
+                  value={polishedBg.fitMode}
+                  onChange={(e) => updateProjectField('polishedBackground.fitMode', e.target.value)}
+                  className="border border-zinc-300 bg-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+                  data-testid="bg-fit-mode"
+                >
+                  <option value="cover">Cover (Crop to Fit)</option>
+                  <option value="contain">Contain (Letterbox)</option>
+                  <option value="stretch">Stretch</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-semibold text-zinc-900">
+                  <span>Scale: {polishedBg.scale.toFixed(2)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="3"
+                  step="0.05"
+                  value={polishedBg.scale}
+                  onChange={(e) => updateProjectField('polishedBackground.scale', parseFloat(e.target.value))}
+                  className="w-full accent-zinc-950 cursor-pointer"
+                  data-testid="bg-scale-slider"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-semibold text-zinc-900">
+                  <span>Offset X: {polishedBg.offsetX}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="-1000"
+                  max="1000"
+                  step="5"
+                  value={polishedBg.offsetX}
+                  onChange={(e) => updateProjectField('polishedBackground.offsetX', parseInt(e.target.value))}
+                  className="w-full accent-zinc-950 cursor-pointer"
+                  data-testid="bg-offset-x-slider"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-semibold text-zinc-900">
+                  <span>Offset Y: {polishedBg.offsetY}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="-1000"
+                  max="1000"
+                  step="5"
+                  value={polishedBg.offsetY}
+                  onChange={(e) => updateProjectField('polishedBackground.offsetY', parseInt(e.target.value))}
+                  className="w-full accent-zinc-950 cursor-pointer"
+                  data-testid="bg-offset-y-slider"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <div className="flex justify-between text-xs font-semibold text-zinc-900">
+                  <span>Opacity: {Math.round(polishedBg.opacity * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={polishedBg.opacity}
+                  onChange={(e) => updateProjectField('polishedBackground.opacity', parseFloat(e.target.value))}
+                  className="w-full accent-zinc-950 cursor-pointer"
+                  data-testid="bg-opacity-slider"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="flex flex-col gap-1">
+            <label className="font-semibold text-zinc-900">Text Legibility Preset</label>
+            <select
+              value={polishedBg.legibilityPreset}
+              onChange={(e) => updateProjectField('polishedBackground.legibilityPreset', e.target.value)}
+              className="border border-zinc-300 bg-white rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-zinc-950"
+              data-testid="bg-legibility-select"
+            >
+              <option value="none">None</option>
+              <option value="drop_shadow">Drop Shadow (Text Shadow)</option>
+              <option value="text_outline">Text Outline</option>
+              <option value="backing_plate">Backing Plate (Solid blocks)</option>
+            </select>
+          </div>
         </div>
       </div>
     </aside>

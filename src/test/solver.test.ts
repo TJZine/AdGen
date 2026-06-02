@@ -97,6 +97,15 @@ function createMockProject(itemCount: number, sectionPriorities: string[] = ['no
       aiPolishMode: 'background_and_style',
       finalFormats: ['png', 'pdf'],
     },
+    polishedBackground: {
+      assetId: null,
+      fitMode: 'cover',
+      offsetX: 0,
+      offsetY: 0,
+      scale: 1,
+      opacity: 1,
+      legibilityPreset: 'none',
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

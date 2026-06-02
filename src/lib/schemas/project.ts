@@ -290,6 +290,23 @@ export const ProjectSchema = z.object({
       .array(z.enum(['png', 'pdf', 'svg']))
       .default(['png', 'pdf']),
   }),
+  polishedBackground: z.object({
+    assetId: z.string().nullable().default(null),
+    fitMode: z.enum(['cover', 'contain', 'stretch']).default('cover'),
+    offsetX: z.number().default(0),
+    offsetY: z.number().default(0),
+    scale: z.number().default(1),
+    opacity: z.number().min(0).max(1).default(1),
+    legibilityPreset: z.enum(['none', 'backing_plate', 'drop_shadow', 'text_outline']).default('none'),
+  }).default({
+    assetId: null,
+    fitMode: 'cover',
+    offsetX: 0,
+    offsetY: 0,
+    scale: 1,
+    opacity: 1,
+    legibilityPreset: 'none',
+  }),
   createdAt: z
     .string()
     .datetime()

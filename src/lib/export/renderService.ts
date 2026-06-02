@@ -367,3 +367,87 @@ function escapeSvg(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
+/**
+ * Renders the flyer layout as a print-ready vector PDF using headless Chromium via Playwright.
+ *
+ * @param projectId - The project UUID
+ * @returns Promise<Buffer> - The PDF file as a binary buffer
+ */
+export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
+  // 1. Fetch project dimensions from database
+  const projectRecord = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!projectRecord) {
+    throw new Error(`Project with ID ${projectId} not found`);
+  }
+
+  let rawProject: unknown;
+  try {
+    rawProject = JSON.parse(projectRecord.contentJson);
+  } catch {
+    throw new Error(`Failed to parse contentJson for project ${projectId}`);
+  }
+
+  const projectResult = ProjectSchema.safeParse(rawProject);
+  if (!projectResult.success) {
+    throw new Error(`Project validation failed: ${projectResult.error.message}`);
+  }
+
+  const { widthPx, heightPx } = projectResult.data.canvas;
+
+  // 2. Launch headless Chromium browser
+  const browser = await chromium.launch({
+    headless: true,
+  });
+
+  try {
+    // 3. Create context with exact viewport size
+    const context = await browser.newContext({
+      viewport: {
+        width: widthPx,
+        height: heightPx,
+      },
+      deviceScaleFactor: 1,
+    });
+
+    const page = await context.newPage();
+
+    // 4. Construct URL with parameters
+    const baseUrl =
+      process.env.RENDER_BASE_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      'http://localhost:3000';
+    const url = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
+
+    // 5. Navigate to rendering route and wait until network is idle
+    await page.goto(url, {
+      waitUntil: 'networkidle',
+    });
+
+    // Wait for web fonts to load
+    await page.evaluate(() => document.fonts.ready);
+
+    // 6. Ensure the main canvas is visible
+    await page.waitForSelector('[data-testid="canvas-preview-container"]', {
+      state: 'visible',
+      timeout: 10000,
+    });
+
+    // 7. Run page.pdf with exact dimensions in pixels
+    const pdfBuffer = await page.pdf({
+      width: `${widthPx}px`,
+      height: `${heightPx}px`,
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
+    });
+
+    return pdfBuffer;
+  } finally {
+    // 8. Always close browser
+    await browser.close();
+  }
+}
+
