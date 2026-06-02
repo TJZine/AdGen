@@ -1,0 +1,1901 @@
+# AI Agent Development Brief: Template-to-Flyer Generator App
+
+## 1. Product vision
+
+Create an app that allows a user to quickly build rough visual templates for flyers, adverts, inventory boards, catalogs, menus, event posters, service listings, comparison charts, and social posts.
+
+The app should not try to be Photoshop, Canva, or Illustrator. Its purpose is to make it very fast to organize content, produce a clean rough layout, and then pass that layout to an AI image generator with detailed prompt instructions to create a polished professional visual design.
+
+The attached handgun inventory board is the reference workflow:
+
+1. User enters structured item data.
+2. App organizes items into sections and cards.
+3. App generates a rough layout that is accurate and readable.
+4. User exports the rough layout plus prompt instructions.
+5. AI image generator produces a polished visual version.
+6. App optionally re-applies exact text/images/prices/contact info on top of the polished design to avoid hallucinated or corrupted details.
+
+The app should support many layouts depending on the number of items, item priority, categories, available images, desired output size, and whether the user wants a dense inventory board, a premium hero flyer, a social ad, or a simple menu/listing.
+
+---
+
+# 2. Core product principle
+
+The app should separate **content truth** from **visual styling**.
+
+## Content truth
+
+This includes:
+
+* Item names
+* Prices
+* Sale prices
+* Categories
+* Descriptions
+* Badges
+* Legal disclaimers
+* Phone numbers
+* URLs
+* Email addresses
+* Dates
+* Product specs
+* QR codes
+* Logos
+* Contact blocks
+
+These should be generated and rendered deterministically by the app.
+
+## Visual styling
+
+This includes:
+
+* Background texture
+* Borders
+* Shadows
+* Lighting
+* Typography style direction
+* Decorative framing
+* Color palette
+* Mood
+* Depth
+* Premium polish
+* Brand atmosphere
+* Poster aesthetics
+
+These can be handled by the AI image generator.
+
+## Important design rule
+
+Do **not** rely on the AI image generator to preserve exact text, prices, phone numbers, disclaimers, or URLs. The app should support an “AI polish + exact overlay” workflow where the generated image is used as the styled background/design layer, then the app re-renders exact content on top.
+
+---
+
+# 3. Target users
+
+Primary user:
+
+* Small business owner, club admin, marketer, reseller, event organizer, or operator who needs to create visually appealing flyers quickly.
+* User may not be a professional designer.
+* User may have many items and photos.
+* User needs speed, organization, and repeatable layouts.
+
+Secondary user:
+
+* Technical power user who wants structured data import/export, reusable templates, JSON layout definitions, and AI prompt control.
+
+---
+
+# 4. Primary use cases
+
+The app should support these use cases from the beginning or through a template system:
+
+| Use case                            | Example layout                                 |
+| ----------------------------------- | ---------------------------------------------- |
+| Inventory board                     | Product cards grouped by category, with prices |
+| Sale flyer                          | Hero item + smaller supporting items           |
+| Event poster                        | Title, date, venue, schedule, sponsors         |
+| Restaurant/menu board               | Sections, item names, descriptions, prices     |
+| Service advert                      | Packages, features, call-to-action             |
+| Product comparison                  | Columns, specs, pricing, badges                |
+| Real estate / vehicle listing style | Hero image, specs, location/contact            |
+| Social media carousel               | Multiple square/portrait slides                |
+| Premium single-item advert          | One product, big image, features, CTA          |
+| Multi-vendor/vendor board           | Grouped sections by vendor or category         |
+
+---
+
+# 5. Core workflow
+
+## Step 1: Create a project
+
+User selects:
+
+* Project name
+* Output type
+* Canvas size
+* Brand profile
+* Layout family
+* Density preference
+* Image generator target, optional
+* Exact-text mode, recommended default
+
+Example canvas sizes:
+
+| Format             | Size         |
+| ------------------ | ------------ |
+| Letter flyer       | 8.5 x 11 in  |
+| Poster             | 11 x 17 in   |
+| Instagram square   | 1080 x 1080  |
+| Instagram portrait | 1080 x 1350  |
+| Facebook post      | 1200 x 1500  |
+| Web banner         | 1920 x 1080  |
+| Custom             | User-defined |
+
+The app should store physical dimensions, pixel dimensions, DPI, and safe zones.
+
+---
+
+## Step 2: Add content
+
+User can add content manually or import it.
+
+Supported import methods:
+
+* Manual item editor
+* CSV upload
+* JSON upload
+* Clipboard paste from spreadsheet
+* Bulk image upload
+* Future: API import from POS/inventory system
+* Future: OCR-assisted import from old flyers, but this should not be MVP-critical
+
+Example CSV fields:
+
+```csv
+section,title,subtitle,description,price,sale_price,badge,image,priority,tags
+Compact / Carry-Size,Smith & Wesson M&P9 Shield Plus,9mm | Compact,,530,,,"images/shield-plus.jpg",normal,"compact,9mm"
+Range / Training / .22 LR,Sig Sauer P322,.22 LR | Range / training,,400,,,"images/p322.jpg",normal,"training,22lr"
+Premium / Used,Atlas Gunworks Apollo V2 Perfect Zero,9mm | Used premium,,6250,,USED,"images/atlas-apollo.jpg",hero,"premium,used"
+```
+
+---
+
+## Step 3: Organize content
+
+The app should provide a table/grid interface for managing content.
+
+User can:
+
+* Create sections
+* Drag items between sections
+* Reorder items
+* Mark items as hero, featured, normal, compact, hidden, or footer-only
+* Set card size preference
+* Set badge text
+* Set sale price
+* Add notes
+* Crop item images
+* Choose image fit mode: contain, cover, crop, transparent background, full bleed
+* Validate missing fields
+
+The app should make content organization easier than a generic design tool.
+
+---
+
+## Step 4: Choose or generate a rough layout
+
+The user selects a layout family or asks the app to auto-pick.
+
+The app should generate a rough layout using deterministic layout rules, not random image generation.
+
+The rough layout should be clean enough that an AI image generator can understand the structure.
+
+The rough layout should include:
+
+* Header
+* Brand area
+* Main title
+* Subtitle
+* Section headers
+* Item cards
+* Images
+* Prices
+* Badges
+* Footer/contact block
+* Legal/disclaimer text
+* Safe margins
+* Optional QR code block
+* Optional sponsor/logo strip
+
+---
+
+## Step 5: Edit the rough layout
+
+Editor should allow:
+
+* Dragging sections
+* Dragging cards
+* Resizing cards
+* Switching a section from 2-column to 3-column
+* Promoting an item to hero
+* Collapsing a description
+* Adjusting density
+* Adjusting image/text split
+* Changing title/footer size
+* Applying brand colors
+* Locking critical elements
+* Duplicating a layout variant
+* Comparing variants side-by-side
+
+The editor should avoid complex freeform design at first. It should be structured, constrained, and fast.
+
+---
+
+## Step 6: Export AI handoff package
+
+The app should export:
+
+1. Rough layout image, PNG
+2. Transparent text/content overlay, PNG or SVG
+3. Exact content JSON
+4. Layout JSON
+5. Brand/style JSON
+6. Prompt file, Markdown or TXT
+7. Optional negative prompt
+8. Optional “AI-safe background only” version with text removed
+9. Optional PDF proof
+10. Optional final composited export
+
+This package should be easy to pass into ChatGPT image generation, Midjourney, Firefly, Ideogram, DALL-E-style tools, or future image APIs.
+
+---
+
+## Step 7: AI polish workflow
+
+Recommended workflow:
+
+1. Export rough layout with exact visual structure.
+2. Send rough layout to image generator with prompt instructions.
+3. Ask the generator to improve the professional visual design while preserving composition.
+4. Generate polished version.
+5. Import polished version back into the app.
+6. Use the app to overlay exact text, prices, images, QR codes, and disclaimers.
+7. Export final PNG/PDF.
+
+This avoids the common problem where the AI-generated image looks great but corrupts product names, prices, or contact details.
+
+---
+
+# 6. Layout families
+
+The app should support a flexible set of layout families. Each layout family should be a reusable template with parameters.
+
+## A. Inventory board
+
+Good for the attached example.
+
+Features:
+
+* Large title/header
+* Subtitle
+* Grouped sections
+* Product cards
+* Prices
+* Footer/contact/legal block
+* Optional hero item
+* Dense but readable
+
+Variants:
+
+* 2-column board
+* 3-column board
+* Sectioned grid
+* Hero bottom
+* Hero top
+* Hero side rail
+* Premium featured row
+* Compact price list mode
+
+---
+
+## B. Hero + grid flyer
+
+Good for sales, featured product, event headliner, premium listing.
+
+Structure:
+
+* Big hero item
+* Supporting item grid
+* CTA/footer
+* Optional comparison or feature bullets
+
+---
+
+## C. Menu/listing board
+
+Good for restaurants, services, classes, packages, parts, pricing lists.
+
+Structure:
+
+* Section headers
+* Text-heavy rows
+* Optional small thumbnails
+* Price columns
+* Callout boxes
+
+---
+
+## D. Comparison chart
+
+Good for plans, packages, products, memberships.
+
+Structure:
+
+* Columns
+* Feature rows
+* Badges
+* Highlighted recommendation
+* CTA
+
+---
+
+## E. Social carousel
+
+Good for multiple Instagram/Facebook slides.
+
+Structure:
+
+* Slide 1: headline/hero
+* Slide 2-N: category/item cards
+* Last slide: CTA/contact
+* Shared brand system
+
+---
+
+## F. Event flyer
+
+Structure:
+
+* Event title
+* Date/time/location
+* Hero image or background
+* Schedule
+* Special guests/sponsors
+* CTA/QR code
+
+---
+
+## G. Premium single-item advert
+
+Structure:
+
+* Large image
+* Product name
+* Key specs
+* Price
+* Badge
+* CTA
+* High-end visual styling
+
+---
+
+# 7. Adaptive layout behavior
+
+The layout engine should choose layouts based on content count and importance.
+
+Example rules:
+
+| Number of items | Recommended layout                            |
+| --------------: | --------------------------------------------- |
+|               1 | Premium single-item hero                      |
+|               2 | Split feature layout                          |
+|               3 | Three-card feature row                        |
+|             4-6 | Hero + grid or compact catalog                |
+|            7-12 | Sectioned grid                                |
+|           13-24 | Dense inventory board                         |
+|             25+ | Multi-page catalog or compressed table layout |
+
+The engine should also consider:
+
+* Number of sections
+* Longest item name
+* Image availability
+* Price visibility
+* Required footer size
+* Legal copy length
+* Canvas aspect ratio
+* Item priority
+* Whether a hero item exists
+* Whether any section must stay together
+
+---
+
+# 8. Layout engine requirements
+
+The layout engine should be deterministic and inspectable.
+
+It should accept structured content and return a layout tree with exact positions.
+
+Input:
+
+* Canvas dimensions
+* Safe margins
+* Brand settings
+* Sections
+* Items
+* Images
+* Density setting
+* Layout family
+* Required footer/header blocks
+
+Output:
+
+* Positioned elements
+* Bounding boxes
+* Font sizes
+* Image crop boxes
+* Overflow warnings
+* Suggested alternatives
+* Export-ready layout JSON
+
+The layout engine should support:
+
+* Grid calculation
+* Section packing
+* Hero card allocation
+* Auto font sizing
+* Text truncation rules
+* Price alignment
+* Image aspect-ratio handling
+* Gutters and safe margins
+* Minimum readable text size
+* Collision detection
+* Overflow detection
+* Layout scoring
+
+---
+
+## Layout scoring
+
+Each generated layout variant should receive a score.
+
+Possible scoring criteria:
+
+| Criterion                   | Purpose                     |
+| --------------------------- | --------------------------- |
+| No text overflow            | Prevent broken exports      |
+| Minimum font size respected | Keep flyer readable         |
+| Balanced whitespace         | Avoid lopsided layouts      |
+| Section integrity           | Keep grouped items together |
+| Image visibility            | Avoid tiny product images   |
+| Price visibility            | Keep price easy to find     |
+| Hero priority respected     | Feature important items     |
+| Footer/legal retained       | Avoid compliance errors     |
+| Prompt clarity              | Make AI handoff easier      |
+
+The app should generate several variants and let the user choose.
+
+---
+
+# 9. Template data model
+
+The app should use a structured JSON model internally. This is important because the AI agent, renderer, editor, and export system all need a shared contract.
+
+## Project object
+
+```json
+{
+  "id": "project_001",
+  "name": "Handgun Inventory Board",
+  "type": "inventory_board",
+  "canvas": {
+    "preset": "poster_11x17",
+    "widthPx": 3300,
+    "heightPx": 5100,
+    "dpi": 300,
+    "safeMarginPx": 120
+  },
+  "brand": {
+    "name": "CFC Tactical",
+    "website": "cfctactical.com",
+    "logoAssetId": "asset_logo",
+    "colors": {
+      "background": "#181a18",
+      "primary": "#ff6a00",
+      "secondary": "#ffffff",
+      "muted": "#a7a7a7"
+    },
+    "styleKeywords": [
+      "tactical",
+      "premium",
+      "high contrast",
+      "dark industrial",
+      "orange accents"
+    ]
+  },
+  "content": {
+    "headline": "Handgun Inventory Board",
+    "subheadline": "Current handgun options grouped by format and intended fit.",
+    "sections": []
+  },
+  "layout": {},
+  "exportSettings": {
+    "exactTextOverlay": true,
+    "aiPolishMode": "background_and_style",
+    "finalFormats": ["png", "pdf", "svg"]
+  }
+}
+```
+
+---
+
+## Section object
+
+```json
+{
+  "id": "section_compact",
+  "title": "Compact / Carry-Size",
+  "subtitle": "",
+  "priority": "normal",
+  "layoutHint": "grid",
+  "items": []
+}
+```
+
+---
+
+## Item object
+
+```json
+{
+  "id": "item_001",
+  "sectionId": "section_compact",
+  "title": "Smith & Wesson M&P9 Shield Plus",
+  "subtitle": "9mm | Compact",
+  "description": "",
+  "price": 530,
+  "priceDisplay": "$530",
+  "salePrice": null,
+  "badge": null,
+  "imageAssetId": "asset_shield_plus",
+  "priority": "normal",
+  "visibility": "visible",
+  "layoutHints": {
+    "cardSize": "normal",
+    "imageFit": "contain",
+    "preferredAspectRatio": "4:3"
+  },
+  "metadata": {
+    "tags": ["compact", "9mm"]
+  }
+}
+```
+
+---
+
+## Layout element object
+
+```json
+{
+  "id": "element_item_001_card",
+  "type": "item_card",
+  "contentRef": "item_001",
+  "x": 120,
+  "y": 820,
+  "width": 960,
+  "height": 420,
+  "locked": false,
+  "style": {
+    "variant": "image_left_text_right",
+    "density": "compact",
+    "border": true,
+    "pricePosition": "bottom_right"
+  }
+}
+```
+
+---
+
+# 10. Element system
+
+The renderer should support these element types:
+
+| Element type          | Purpose                                |
+| --------------------- | -------------------------------------- |
+| `text`                | Titles, subtitles, labels, disclaimers |
+| `image`               | Product photos, logos, backgrounds     |
+| `item_card`           | Product or listing card                |
+| `section_header`      | Category divider                       |
+| `price`               | Price text with special formatting     |
+| `badge`               | Sale, used, new, featured, limited     |
+| `shape`               | Lines, panels, boxes, separators       |
+| `qr_code`             | URL/contact/action QR                  |
+| `footer`              | Contact/legal block                    |
+| `group`               | Container for grouped elements         |
+| `background`          | Solid, gradient, texture placeholder   |
+| `ai_instruction_zone` | Non-rendered metadata for AI prompt    |
+
+The `ai_instruction_zone` is useful because some layout regions may need special instructions such as:
+
+* “Preserve this as a footer.”
+* “Make this section feel premium.”
+* “Do not alter exact product names.”
+* “Use this image as the hero product.”
+* “Keep these cards aligned in a dense grid.”
+
+---
+
+# 11. Editor UX
+
+## Main screen layout
+
+Use a practical editor interface:
+
+| Area               | Purpose                                              |
+| ------------------ | ---------------------------------------------------- |
+| Left sidebar       | Content, sections, assets, templates                 |
+| Center canvas      | Visual layout preview                                |
+| Right sidebar      | Properties for selected item/section/canvas          |
+| Top toolbar        | Project, undo/redo, export, preview, layout variants |
+| Bottom panel       | Validation warnings, layout score, AI prompt preview |
+| AI assistant panel | Generate layouts, rewrite prompt, suggest variants   |
+
+---
+
+## Left sidebar
+
+Tabs:
+
+1. Content
+2. Assets
+3. Layouts
+4. Brand
+5. AI Handoff
+6. Exports
+
+Content tab:
+
+* Section list
+* Item list
+* Drag-and-drop reorder
+* Quick add
+* Bulk edit
+* CSV import
+* Missing image warnings
+* Hidden items
+
+Assets tab:
+
+* Image library
+* Logo library
+* Backgrounds
+* Cropping tools
+* Asset usage indicators
+
+Layouts tab:
+
+* Layout family picker
+* Density slider
+* Generate variants
+* Save current layout as template
+* Apply template
+
+Brand tab:
+
+* Logo
+* Colors
+* Fonts
+* Contact info
+* Default disclaimer
+* Style keywords
+
+AI Handoff tab:
+
+* Visual design prompt
+* Negative prompt
+* Exact-text mode
+* Style reference image
+* Export package options
+
+---
+
+# 12. Rough layout editor features
+
+The MVP editor should support:
+
+* Add/edit/delete sections
+* Add/edit/delete items
+* Upload images
+* Reorder sections/items
+* Choose layout family
+* Generate layout variants
+* Drag cards
+* Resize cards
+* Toggle hero item
+* Toggle sale/used/new badges
+* Edit price display
+* Edit footer/contact block
+* Preview overflow warnings
+* Export rough PNG
+* Export content JSON
+* Export prompt
+
+Avoid building advanced freeform drawing tools in MVP. Keep the design structured.
+
+---
+
+# 13. Rendering architecture
+
+The app should use a deterministic renderer.
+
+Good rendering options:
+
+| Option                   | Pros                                         | Cons                               |
+| ------------------------ | -------------------------------------------- | ---------------------------------- |
+| HTML/CSS renderer        | Fast to build, familiar, easy text rendering | Print-perfect layout can be tricky |
+| SVG renderer             | Precise, exportable, good for overlays       | More custom layout code            |
+| Canvas renderer          | Flexible visual rendering                    | Text/layout editing can be harder  |
+| Hybrid HTML/SVG          | Good balance                                 | More complexity                    |
+| Server-side PDF renderer | Great for print export                       | Requires backend/export pipeline   |
+
+Recommended approach:
+
+**Use React + TypeScript for editor, generate an internal layout JSON, render to SVG/HTML for preview, and export via Playwright or Sharp.**
+
+For MVP:
+
+* Frontend: React or Next.js
+* Editor state: Zustand or Redux Toolkit
+* Canvas interactions: Konva.js, Fabric.js, or custom SVG selection layer
+* Rendering: SVG or HTML/CSS
+* Export: Playwright screenshot for PNG/PDF, or SVG-to-PNG pipeline
+* Storage: SQLite with Prisma, or local IndexedDB for a local-first prototype
+* Image processing: Sharp on backend
+* File packaging: ZIP export
+
+For a local/self-hosted version:
+
+* Docker Compose
+* Web app container
+* SQLite/Postgres volume
+* Asset storage volume
+* Optional worker for exports
+
+---
+
+# 14. Suggested technical architecture
+
+## Frontend
+
+* React / Next.js
+* TypeScript
+* Tailwind or CSS modules
+* Zustand for editor state
+* React Hook Form for item editing
+* DnD Kit for drag-and-drop content organization
+* Konva.js, Fabric.js, or SVG-based canvas interaction
+* Keyboard shortcuts
+* Undo/redo history
+
+## Backend
+
+* Node.js / Next.js API routes or Fastify
+* SQLite for MVP, Postgres later
+* Prisma ORM
+* Sharp for image resizing/thumbnails
+* Playwright for export rendering
+* ZIP generation for handoff packages
+* Optional background job queue for large exports
+
+## Storage
+
+* Local filesystem for self-hosted
+* S3-compatible object storage later
+* Store original images, cropped variants, thumbnails, and exported files
+
+## Optional AI services
+
+* LLM for layout suggestions
+* LLM for prompt generation
+* Image generation API integration
+* Brand/style prompt generator
+* OCR import later, not MVP-critical
+
+---
+
+# 15. Core modules
+
+## Module 1: Project manager
+
+Responsibilities:
+
+* Create project
+* Duplicate project
+* Save versions
+* Export/import project JSON
+* Manage canvas presets
+* Store brand profile
+
+---
+
+## Module 2: Content manager
+
+Responsibilities:
+
+* Sections
+* Items
+* Bulk editing
+* CSV import/export
+* Required-field validation
+* Item priority
+* Price formatting
+* Badge metadata
+* Notes
+* Tags
+
+---
+
+## Module 3: Asset manager
+
+Responsibilities:
+
+* Upload images
+* Generate thumbnails
+* Crop images
+* Set focal point
+* Remove background later if desired
+* Assign image to item
+* Track missing images
+* Store logo/background assets
+
+---
+
+## Module 4: Layout engine
+
+Responsibilities:
+
+* Choose layout family
+* Generate layout variants
+* Compute section/card positions
+* Fit text
+* Detect overflow
+* Score layouts
+* Respect locked elements
+* Respect hero items
+* Reflow based on canvas size
+
+---
+
+## Module 5: Template library
+
+Responsibilities:
+
+* Store reusable layout templates
+* Store layout family definitions
+* Store style presets
+* Allow user-created templates
+* Allow template cloning
+
+---
+
+## Module 6: Renderer
+
+Responsibilities:
+
+* Render preview
+* Render rough layout PNG
+* Render transparent overlay
+* Render print PDF
+* Render SVG
+* Export exact text layer
+* Export background-only layer
+
+---
+
+## Module 7: AI handoff generator
+
+Responsibilities:
+
+* Create prompt from project data
+* Create negative prompt
+* Package rough layout image
+* Package style instructions
+* Package exact content JSON
+* Package overlay image
+* Package background-only version
+* Support multiple target image generators
+
+---
+
+## Module 8: Import polished image
+
+Responsibilities:
+
+* Let user upload AI-generated result
+* Align polished image to original canvas
+* Overlay exact text/content
+* Compare before/after
+* Export final composite
+
+---
+
+# 16. AI handoff strategy
+
+The app should support three AI handoff modes.
+
+## Mode A: Full visual reference
+
+Use when user wants the AI image generator to polish the whole design.
+
+Input to generator:
+
+* Rough template image
+* Detailed visual prompt
+* Style references
+* Exact content warning
+
+Risk:
+
+* Text may get corrupted.
+
+Best for:
+
+* Concepting
+* Quick ads where exact text is not critical
+* Layout exploration
+
+---
+
+## Mode B: Background/style-only generation
+
+Recommended default.
+
+The app exports a version of the layout with text removed or reduced to placeholder blocks. The AI generator improves:
+
+* Background
+* Borders
+* Frames
+* Lighting
+* Texture
+* Decorations
+* Overall polish
+
+Then the app overlays the exact text, prices, logos, QR codes, and product photos.
+
+Best for:
+
+* Professional flyers
+* Product inventory boards
+* Legal/commercial material
+* Anything with exact prices/contact info
+
+---
+
+## Mode C: Design concept generation only
+
+The app asks the AI generator for style concepts, then the app recreates the final deterministically.
+
+Best for:
+
+* Brand exploration
+* Template creation
+* Building reusable styles
+
+---
+
+# 17. Prompt generation requirements
+
+The app should generate a prompt that includes:
+
+* Project type
+* Audience
+* Brand style
+* Canvas format
+* Layout preservation instructions
+* Section structure
+* Visual polish instructions
+* Typography direction
+* Color palette
+* What to change
+* What not to change
+* Exact text handling rules
+* Output quality expectations
+* Negative prompt
+
+---
+
+## Example generated AI prompt
+
+```text
+Create a polished professional flyer based on the attached rough layout.
+
+Purpose:
+A dark tactical-style inventory board with product cards grouped into sections. The layout should remain clearly organized and readable.
+
+Canvas:
+Vertical poster format. Preserve the same general composition, section order, item grouping, and footer placement.
+
+Visual direction:
+Premium tactical retail board, dark matte background, subtle industrial texture, high contrast, orange accent lines, clean card borders, professional lighting, polished sports/gear catalog aesthetic. Make the design feel finished and commercially usable, similar to a premium retail inventory advertisement.
+
+Layout instructions:
+- Keep the large headline area at the top.
+- Keep section dividers between groups.
+- Keep item cards in a structured grid.
+- Keep the premium/used hero item larger near the bottom.
+- Keep the footer/contact area at the bottom.
+- Preserve spacing hierarchy and readability.
+- Improve borders, shadows, background texture, section labels, and overall visual polish.
+
+Critical content instructions:
+- Do not invent new products.
+- Do not change the number of item cards.
+- Do not move products into different sections.
+- Do not alter product prices.
+- Do not alter phone numbers, emails, website URLs, or legal copy.
+- If exact text cannot be preserved, leave text areas clean enough for a deterministic overlay.
+
+Preferred result:
+A polished, high-resolution, professional retail flyer/ad design with the same structure as the rough layout, suitable for final text overlay and export.
+```
+
+---
+
+## Example negative prompt
+
+```text
+Do not create random extra products. Do not add fake logos. Do not distort the layout. Do not create unreadable text. Do not invent contact information. Do not change prices. Do not add cluttered backgrounds. Do not turn product photos into illustrations unless specifically requested. Do not remove footer/legal space.
+```
+
+---
+
+# 18. Deterministic final overlay
+
+The app should have an overlay system that can render exact final content over the AI-polished image.
+
+Overlay elements:
+
+* Main title
+* Subtitle
+* Section labels
+* Item names
+* Descriptions
+* Prices
+* Sale tags
+* Badges
+* Contact information
+* Legal disclaimers
+* QR codes
+* Logos, if needed
+
+The overlay should support:
+
+* Transparent PNG export
+* SVG export
+* PDF export
+* Final composite export
+* Toggle visibility by layer
+* Text shadow/stroke options for readability
+* Auto contrast checking
+* Manual nudge controls
+
+This is one of the most important features.
+
+---
+
+# 19. Brand system
+
+The app should allow reusable brand profiles.
+
+Brand profile fields:
+
+```json
+{
+  "brandName": "CFC Tactical",
+  "logoAssetId": "asset_logo",
+  "website": "cfctactical.com",
+  "phone": "781-858-4786",
+  "email": "terry@cfctactical.com",
+  "defaultFooter": "Questions? Reach out for guidance, testing, or additional insight.",
+  "defaultDisclaimer": "Visit website for current availability. All purchases are subject to applicable federal, state, and local requirements.",
+  "colors": {
+    "primary": "#ff6a00",
+    "background": "#181818",
+    "text": "#ffffff",
+    "muted": "#a0a0a0"
+  },
+  "styleKeywords": [
+    "dark tactical",
+    "premium",
+    "industrial",
+    "high contrast",
+    "orange accents"
+  ],
+  "fontPreferences": {
+    "heading": "condensed bold sans",
+    "body": "clean sans",
+    "price": "bold sans"
+  }
+}
+```
+
+The user should be able to create multiple brand profiles.
+
+---
+
+# 20. Template system
+
+Templates should not be static images. They should be parameterized layout definitions.
+
+A template should define:
+
+* Canvas ratio
+* Header behavior
+* Footer behavior
+* Section behavior
+* Card variants
+* Grid rules
+* Hero rules
+* Style tokens
+* Minimum/maximum item counts
+* Density presets
+* AI prompt style block
+* Export layer rules
+
+Example template metadata:
+
+```json
+{
+  "templateId": "inventory_board_dark_tactical_v1",
+  "name": "Dark Tactical Inventory Board",
+  "layoutFamily": "inventory_board",
+  "supportedItemCounts": {
+    "min": 6,
+    "max": 24
+  },
+  "supportedCanvasRatios": ["portrait", "poster"],
+  "sections": {
+    "allowHeroSection": true,
+    "maxSections": 8,
+    "defaultSectionHeaderStyle": "centered_label"
+  },
+  "cards": {
+    "variants": [
+      "image_left_text_right",
+      "image_top_text_bottom",
+      "compact_row",
+      "hero_wide"
+    ]
+  },
+  "aiStylePrompt": "dark premium tactical retail board, orange accents, matte industrial background, polished commercial advertisement"
+}
+```
+
+---
+
+# 21. Card system
+
+Item cards should have variants.
+
+## Card variant A: Image left, text right
+
+Good for inventory boards.
+
+Fields:
+
+* Image block
+* Title
+* Subtitle
+* Price bottom-right
+* Badge top-right or corner
+* Optional description
+
+## Card variant B: Image top, text bottom
+
+Good for social posts and visual catalogs.
+
+## Card variant C: Compact row
+
+Good for dense lists.
+
+## Card variant D: Hero card
+
+Good for featured item.
+
+## Card variant E: Price-list row
+
+Good for menus/services.
+
+Each card variant should have:
+
+* Minimum width
+* Minimum height
+* Preferred aspect ratio
+* Text limits
+* Image ratio
+* Price position
+* Badge positions
+* Responsive behavior
+
+---
+
+# 22. Validation system
+
+The app should warn the user before export.
+
+Validation warnings:
+
+| Warning               | Example                                 |
+| --------------------- | --------------------------------------- |
+| Missing image         | Item has no assigned image              |
+| Text overflow         | Product name too long for selected card |
+| Tiny text             | Footer disclaimer below readable size   |
+| Too many items        | 31 items on one letter-size flyer       |
+| Low image resolution  | Image may look blurry at export size    |
+| Unused item           | Item exists but is hidden               |
+| Missing price         | Product marked as sellable but no price |
+| Missing contact info  | Flyer has no CTA/contact block          |
+| Footer/legal overflow | Disclaimer too long for footer          |
+| AI-risk warning       | Exact text mode disabled                |
+
+For regulated or sensitive industries, the app should allow required disclaimers and should avoid silently removing them.
+
+---
+
+# 23. Layout generation algorithm
+
+The first implementation can use a heuristic layout engine.
+
+## Inputs
+
+* Canvas width/height
+* Safe margins
+* Header height
+* Footer height
+* Section count
+* Item count per section
+* Hero item count
+* Density setting
+* Layout family
+
+## Process
+
+1. Reserve safe margin.
+2. Reserve header.
+3. Reserve footer.
+4. Reserve hero area if needed.
+5. Divide remaining space into section bands.
+6. For each section:
+
+   * Determine item count.
+   * Choose grid columns.
+   * Compute card dimensions.
+   * Choose card variant.
+   * Fit cards.
+   * Adjust section height.
+7. Run text fitting.
+8. Check overflow.
+9. Score layout.
+10. Generate alternatives.
+
+## Example section grid rules
+
+```ts
+function chooseColumns(itemCount: number, canvasWidth: number, density: "loose" | "normal" | "dense") {
+  if (itemCount <= 2) return 2;
+  if (itemCount <= 4) return density === "loose" ? 2 : 3;
+  if (itemCount <= 6) return 3;
+  if (itemCount <= 9) return 3;
+  return canvasWidth > 2200 ? 4 : 3;
+}
+```
+
+## Example card size rule
+
+```ts
+const minCardHeight = {
+  loose: 360,
+  normal: 280,
+  dense: 220
+};
+```
+
+The first version does not need a complex constraint solver. Use deterministic heuristics first, then add smarter packing later.
+
+---
+
+# 24. AI-assisted layout brainstorming
+
+The app can use an LLM to suggest layout plans, but the LLM should not directly render final positions without validation.
+
+Better workflow:
+
+1. LLM proposes a layout plan in strict JSON.
+2. Deterministic layout engine validates it.
+3. Renderer generates the actual layout.
+4. User previews and edits.
+5. App exports.
+
+Example LLM layout-planning prompt:
+
+```text
+You are helping create a structured flyer layout.
+
+Return only valid JSON matching the provided schema.
+
+Goal:
+Create a rough layout plan for an inventory board.
+
+Content summary:
+- 5 sections
+- 19 standard items
+- 1 premium hero item
+- Vertical poster format
+- Dark tactical brand style
+- Footer with phone, email, website, and legal disclaimer
+
+Rules:
+- Do not invent items.
+- Keep all items in their assigned section.
+- Use a large header.
+- Use compact item cards.
+- Use a hero section for the premium item.
+- Reserve footer space.
+- Prefer readability over decoration.
+
+Return:
+- layoutFamily
+- section order
+- card variant per section
+- hero placement
+- density
+- warnings
+- alternate layout suggestions
+```
+
+The LLM output should be treated as a suggestion, not as trusted final layout.
+
+---
+
+# 25. Export package structure
+
+When the user exports for AI generation, create a ZIP like this:
+
+```text
+project-name-ai-handoff.zip
+├── README.md
+├── prompt.md
+├── negative-prompt.txt
+├── rough-layout.png
+├── rough-layout-background-only.png
+├── exact-text-overlay.svg
+├── exact-text-overlay.png
+├── project.json
+├── content.json
+├── layout.json
+├── brand.json
+├── assets/
+│   ├── logo.png
+│   ├── item-001.jpg
+│   ├── item-002.jpg
+│   └── ...
+└── exports/
+    ├── proof.pdf
+    └── rough-layout.svg
+```
+
+The README should tell the user exactly which files to upload to the image generator and what to do with the result.
+
+---
+
+# 26. MVP scope
+
+The MVP should focus on creating rough templates quickly and exporting handoff packages.
+
+## MVP features
+
+* Create project
+* Select canvas size
+* Add/edit sections
+* Add/edit items
+* Upload item images
+* Upload logo
+* Import CSV
+* Choose from 3 layout families:
+
+  * Inventory board
+  * Hero + grid flyer
+  * Menu/listing board
+* Generate layout variants
+* Basic drag/reorder
+* Basic card resizing
+* Brand profile
+* Render rough layout
+* Export PNG
+* Export SVG
+* Export PDF proof
+* Export AI prompt
+* Export ZIP handoff package
+* Import polished background
+* Overlay exact text
+* Export final PNG/PDF
+
+## Not MVP
+
+* Full Canva-like freeform editor
+* Real-time multiplayer collaboration
+* Built-in payment/inventory sync
+* Advanced AI image API integrations
+* OCR from arbitrary flyers
+* Auto-background removal
+* Complex animation/video
+* Fully custom vector drawing tools
+
+---
+
+# 27. Post-MVP features
+
+After MVP:
+
+* Template marketplace/library
+* AI-generated template variants
+* Built-in image generation API
+* Brand kit detection from logo
+* Auto color palette extraction
+* Auto image background removal
+* Smart image cropping/focal point detection
+* Multi-page catalogs
+* Social carousel export
+* Approval workflow
+* Version history
+* Batch generation from CSV
+* Scheduled social posting
+* QR-code campaign tracking
+* Compliance checklist templates
+* Role-based access
+* Cloud sync
+* API/webhook support
+
+---
+
+# 28. Development phases
+
+## Phase 0: Discovery and prototype
+
+Deliverables:
+
+* Confirm primary workflow
+* Define sample project based on attached inventory board
+* Create wireframes
+* Choose tech stack
+* Define JSON schemas
+* Create first static renderer proof
+
+Acceptance criteria:
+
+* Can represent the attached rough inventory board as structured JSON.
+* Can render a non-editable rough board from JSON.
+* Can export PNG.
+
+---
+
+## Phase 1: Content model and renderer
+
+Deliverables:
+
+* Project schema
+* Section schema
+* Item schema
+* Brand schema
+* Asset schema
+* Deterministic renderer
+* Basic export
+
+Acceptance criteria:
+
+* User can create a project with sections/items.
+* Renderer displays item cards correctly.
+* Prices, badges, titles, subtitles, and images render accurately.
+* Exported PNG matches canvas dimensions.
+
+---
+
+## Phase 2: Layout engine
+
+Deliverables:
+
+* Inventory board layout generator
+* Hero + grid layout generator
+* Menu/listing layout generator
+* Layout scoring
+* Overflow warnings
+
+Acceptance criteria:
+
+* App generates at least 3 layout variants from the same content.
+* App adapts to 1, 3, 6, 12, 20, and 30 items.
+* App warns when content does not fit.
+* User can switch layout variants without losing content.
+
+---
+
+## Phase 3: Editor
+
+Deliverables:
+
+* Canvas preview
+* Section reorder
+* Item reorder
+* Basic drag positioning
+* Resize cards
+* Property inspector
+* Undo/redo
+* Save project
+
+Acceptance criteria:
+
+* User can adjust a generated layout manually.
+* User can lock critical blocks.
+* User can edit selected card properties.
+* Layout remains exportable after edits.
+
+---
+
+## Phase 4: AI handoff
+
+Deliverables:
+
+* Prompt generator
+* Negative prompt generator
+* Rough layout export
+* Background-only export
+* Exact overlay export
+* ZIP package export
+
+Acceptance criteria:
+
+* User can export a package ready for an AI image generator.
+* Package includes prompt, rough image, overlay, JSON, and assets.
+* Prompt accurately describes layout and brand style.
+* Exact text overlay can be rendered separately.
+
+---
+
+## Phase 5: Polished image import and final export
+
+Deliverables:
+
+* Import AI-polished image
+* Align to original canvas
+* Overlay exact text
+* Export final PNG/PDF
+
+Acceptance criteria:
+
+* User can upload polished background.
+* Exact content overlay aligns with original layout.
+* Final export preserves product names, prices, contact info, and disclaimer.
+* User can toggle background, images, and text layers.
+
+---
+
+# 29. Recommended first sample project
+
+Use the attached images as a golden test case.
+
+The sample should include:
+
+* Brand: CFC Tactical
+* Main title: Handgun Inventory Board
+* Subtitle: Current handgun options grouped by format and intended fit.
+* Multiple grouped sections
+* Dense item cards
+* Prices
+* Product photos
+* Footer contact block
+* Premium/used hero item at bottom
+* Dark tactical style
+* Orange accent color
+* Professional polish target
+
+The goal is not to hard-code this exact flyer. The goal is to prove the system can recreate this type of structure from reusable data and layout rules.
+
+---
+
+# 30. Key screens to design
+
+## Screen 1: Dashboard
+
+* Recent projects
+* New project button
+* Template picker
+* Brand profile selector
+
+## Screen 2: Project setup
+
+* Canvas size
+* Project type
+* Brand
+* Layout family
+* Density
+* AI handoff mode
+
+## Screen 3: Content table
+
+* Sections
+* Items
+* Images
+* Prices
+* Badges
+* Priority
+* CSV import
+* Bulk edit
+
+## Screen 4: Visual editor
+
+* Canvas preview
+* Drag cards
+* Resize cards
+* Select card/section
+* Right-side properties
+* Layout variants
+* Warnings
+
+## Screen 5: AI handoff
+
+* Rough layout preview
+* Background-only preview
+* Exact overlay preview
+* Prompt preview
+* Export package button
+
+## Screen 6: Final compose
+
+* Upload AI-polished image
+* Overlay exact content
+* Adjust opacity/alignment
+* Export final
+
+---
+
+# 31. Important UX details
+
+The app should feel fast and practical.
+
+Include:
+
+* “Generate 5 layout options” button
+* “Make denser” / “Make more premium” controls
+* “Promote to hero” action
+* “Fit all content” action
+* “Split into multiple pages” suggestion
+* “Show overflow warnings” toggle
+* “Export for AI polish” button
+* “Import polished result” button
+* “Reapply exact text” button
+* “Compare rough vs polished” view
+
+Avoid:
+
+* Making the user manually place every card from scratch
+* Requiring design skill
+* Overcomplicated layer panels in MVP
+* Letting AI silently change actual business content
+
+---
+
+# 32. Quality requirements
+
+## Text fidelity
+
+Final exported text must match project content exactly unless user edits it.
+
+## Layout fidelity
+
+The rough layout should be stable and reproducible from JSON.
+
+## Export quality
+
+The app should support high-resolution export suitable for print and web.
+
+## AI compatibility
+
+The exported prompt and rough visual reference should be understandable to an AI image generator.
+
+## Recoverability
+
+The project should be saved as structured JSON so it can be reopened, edited, versioned, and regenerated.
+
+---
+
+# 33. Testing plan
+
+## Unit tests
+
+* CSV parser
+* Price formatter
+* Section ordering
+* Layout generation
+* Text fitting
+* Overflow detection
+* Template validation
+* Export package generation
+
+## Snapshot tests
+
+Use fixed sample projects and compare rendered SVG/HTML output.
+
+Sample item counts:
+
+* 1 item
+* 2 items
+* 5 items
+* 12 items
+* 20 items
+* 30 items
+* Long product names
+* Missing images
+* Multiple sale badges
+* Long footer disclaimer
+
+## Visual regression tests
+
+Render known templates and compare against baseline images.
+
+## Manual QA
+
+* Import CSV
+* Assign images
+* Generate layout variants
+* Export rough layout
+* Export AI package
+* Import polished image
+* Overlay exact text
+* Export final PDF
+
+---
+
+# 34. Risks and trade-offs
+
+| Risk                                   | Mitigation                                                     |
+| -------------------------------------- | -------------------------------------------------------------- |
+| AI generator corrupts text             | Use background/style-only generation and exact overlay         |
+| Layout engine becomes too complex      | Start with deterministic layout families and simple heuristics |
+| User wants too many items on one page  | Warn, reduce density, or suggest multi-page output             |
+| Product images have inconsistent sizes | Add crop/focal-point tools and image fit modes                 |
+| Templates become hard to maintain      | Use JSON schema and reusable layout primitives                 |
+| App becomes a weak Canva clone         | Keep focus on structured content-to-layout workflow            |
+| Professional polish varies by AI model | Store reusable prompt presets and style references             |
+| Legal/compliance copy omitted          | Treat disclaimers as locked required elements                  |
+| Print exports look blurry              | Enforce DPI, image resolution checks, and PDF/SVG output       |
+
+---
+
+# 35. Strong alternative approach
+
+Instead of building a full visual editor immediately, build a **structured flyer compiler** first.
+
+The first version could be:
+
+1. User fills out CSV/JSON.
+2. User selects layout family.
+3. App renders 5 layout variants.
+4. User picks one.
+5. App exports AI handoff package.
+6. User imports polished background.
+7. App overlays exact text.
+
+This avoids spending months building drag-and-drop editing before proving the core workflow.
+
+Recommended MVP priority:
+
+**Compiler first, editor second.**
+
+---
+
+# 36. AI agent implementation instructions
+
+The AI coding agent should proceed like this:
+
+1. Build the schema first.
+2. Create one complete sample project based on the attached inventory-board use case.
+3. Build a deterministic renderer that can render from JSON.
+4. Build the inventory board layout generator.
+5. Add export to PNG/SVG/PDF.
+6. Add content editing.
+7. Add layout variants.
+8. Add AI prompt export.
+9. Add background-only and exact-overlay export.
+10. Add polished image import and final composite export.
+11. Only then add advanced drag-and-drop editing.
+
+The agent should not start by building a generic design canvas. The app’s value is structured content organization plus fast layout generation.
+
+---
+
+# 37. First MVP acceptance test
+
+The first real acceptance test should be:
+
+Given a project with:
+
+* A brand logo
+* A title
+* A subtitle
+* 5 sections
+* 18-22 product items
+* Product images
+* Prices
+* One premium hero item
+* Footer contact info
+* Legal disclaimer
+
+The app must:
+
+1. Generate at least three usable rough inventory-board layouts.
+2. Render a layout similar in structure to the first attached image.
+3. Export a rough PNG.
+4. Export a prompt suitable for creating a polished version similar in quality to the second attached image.
+5. Export a background-only version.
+6. Export an exact text overlay.
+7. Import the polished AI result.
+8. Overlay exact text and prices.
+9. Export a final professional flyer PNG/PDF.
+
+---
+
+# 38. Initial questions the agent should ask you
+
+The agent should clarify these before implementation:
+
+1. Should this be local-first/self-hosted, cloud-hosted, or both?
+2. Which image generator should the handoff target first?
+3. Do you want the first MVP to be a web app, desktop app, or command-line-assisted web app?
+4. Should exact-text overlay be mandatory by default?
+5. What are the first three layout families you want besides the inventory board?
+6. Should the app support print-first dimensions, social-first dimensions, or both from day one?
+7. Do you want direct AI image API integration now, or only export packages at first?
+
+Reasonable default answers for MVP:
+
+* Web app
+* Local-first or self-hosted
+* Export package first, direct image API later
+* Exact-text overlay enabled by default
+* Inventory board, hero + grid, menu/listing
+* Print and social presets from day one
+
+---
+
+# 39. Recommended first build target
+
+Build a local/self-hosted web app with this stack:
+
+```text
+Frontend:
+- Next.js or Vite React
+- TypeScript
+- Tailwind or CSS modules
+- Zustand for editor state
+- DnD Kit for reordering
+- SVG or HTML/CSS renderer
+
+Backend:
+- Node.js API
+- SQLite + Prisma
+- Sharp for image thumbnails
+- Playwright for PNG/PDF export
+- ZIP package export
+
+Deployment:
+- Docker Compose
+- Persistent volume for database and assets
+```
+
+This stack is practical, easy to iterate, and avoids premature complexity.
+
+---
+
+# 40. One-sentence product definition
+
+Build a structured template compiler and editor that turns organized content into rough, accurate visual layouts, then exports AI-ready design references and exact overlays so image generators can polish the flyer without corrupting critical business content.
