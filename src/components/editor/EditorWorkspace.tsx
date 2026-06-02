@@ -42,6 +42,20 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     setProject(initialProject, initialAssets);
   }, [initialProject, initialAssets, setProject]);
 
+  const numSlides = project.layout?.layoutFamily === 'social_carousel'
+    ? (() => {
+        const visibleSections = project.content.sections.filter(
+          (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
+        );
+        let contentSlidesCount = 0;
+        visibleSections.forEach((section) => {
+          const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
+          contentSlidesCount += Math.ceil(visibleItems.length / 4);
+        });
+        return 1 + contentSlidesCount + 1;
+      })()
+    : 1;
+
   return (
     <div className="flex flex-col h-screen w-screen bg-zinc-100 overflow-hidden font-sans select-none">
       {/* Top Navbar */}
@@ -180,7 +194,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
             {/* Aspect ratio-locked canvas preview with absolute scaling */}
             <div
               style={{
-                width: `${project.canvas.widthPx * zoom}px`,
+                width: `${project.canvas.widthPx * numSlides * zoom}px`,
                 height: `${project.canvas.heightPx * zoom}px`,
                 position: 'relative',
               }}
@@ -192,7 +206,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  width: `${project.canvas.widthPx}px`,
+                  width: `${project.canvas.widthPx * numSlides}px`,
                   height: `${project.canvas.heightPx}px`,
                   transform: `scale(${zoom})`,
                   transformOrigin: 'top left',

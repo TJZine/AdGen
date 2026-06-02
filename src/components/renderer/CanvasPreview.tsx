@@ -17,7 +17,21 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   showOverlay = true,
 }) => {
   const { canvas } = project;
-  const scaledWidth = canvas.widthPx * zoom;
+  const numSlides = project.layout?.layoutFamily === 'social_carousel'
+    ? (() => {
+        const visibleSections = project.content.sections.filter(
+          (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
+        );
+        let contentSlidesCount = 0;
+        visibleSections.forEach((section) => {
+          const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
+          contentSlidesCount += Math.ceil(visibleItems.length / 4);
+        });
+        return 1 + contentSlidesCount + 1;
+      })()
+    : 1;
+
+  const scaledWidth = canvas.widthPx * numSlides * zoom;
   const scaledHeight = canvas.heightPx * zoom;
 
   return (
@@ -33,7 +47,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
       <div
         data-testid="canvas-preview-scale-wrapper"
         style={{
-          width: `${canvas.widthPx}px`,
+          width: `${canvas.widthPx * numSlides}px`,
           height: `${canvas.heightPx}px`,
           position: 'absolute',
           top: 0,
