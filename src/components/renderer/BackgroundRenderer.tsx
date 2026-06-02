@@ -1,0 +1,249 @@
+import React from 'react';
+import { Project, LayoutElement, Asset } from '../../lib/schemas/project';
+import { fitText } from '../../lib/layout/textFit';
+
+export interface BackgroundRendererProps {
+  project: Project;
+  assets?: Asset[];
+}
+
+export function getElementText(el: LayoutElement, project: Project): string {
+  const { content, brand } = project;
+  if (el.contentRef === 'content.headline') {
+    return content.headline;
+  }
+  if (el.contentRef === 'content.subheadline') {
+    return content.subheadline;
+  }
+  if (el.contentRef === 'brand.defaultFooter') {
+    return `${brand.defaultFooter} ${brand.defaultDisclaimer}`.trim();
+  }
+  if (el.type === 'section_header') {
+    const section = content.sections.find((s) => s.id === el.contentRef);
+    return section ? section.title : '';
+  }
+  if (el.contentRef.includes('.')) {
+    const [itemId, field] = el.contentRef.split('.');
+    for (const section of content.sections) {
+      const item = section.items.find((it) => it.id === itemId);
+      if (item) {
+        if (field === 'title') return item.title;
+        if (field === 'subtitle') return item.subtitle;
+        if (field === 'description') return item.description;
+        if (field === 'price') return item.priceDisplay || (item.price !== null ? `$${item.price}` : '');
+        if (field === 'badge') return item.badge || '';
+      }
+    }
+  }
+  return '';
+}
+
+export const BackgroundRenderer: React.FC<BackgroundRendererProps> = ({ project, assets }) => {
+  const { canvas, brand, layout } = project;
+  const elements = layout.elements || [];
+
+  return (
+    <div
+      data-testid="background-renderer"
+      style={{
+        position: 'relative',
+        width: `${canvas.widthPx}px`,
+        height: `${canvas.heightPx}px`,
+        backgroundColor: brand.colors.background,
+        overflow: 'hidden',
+      }}
+    >
+      {elements.map((el) => {
+        const isTextElement = ['text', 'price', 'badge', 'footer', 'section_header'].includes(el.type);
+
+        if (isTextElement) {
+          const text = getElementText(el, project);
+          if (!text) return null;
+
+          let baseFontSize = el.style.fontSize || 14;
+          if (el.type === 'section_header' && !el.style.fontSize) {
+            baseFontSize = 28;
+          }
+          const fit = fitText(text, el.width, el.height, baseFontSize);
+          const textAlign = el.style.textAlign || 'left';
+          const alignSelf =
+            textAlign === 'center'
+              ? 'center'
+              : textAlign === 'right'
+              ? 'flex-end'
+              : 'flex-start';
+
+          // Render solid gray blocks representing text lines, omitting all actual text characters
+          return (
+            <div
+              key={el.id}
+              data-testid={`mask-${el.id}`}
+              style={{
+                position: 'absolute',
+                left: `${el.x}px`,
+                top: `${el.y}px`,
+                width: `${el.width}px`,
+                height: `${el.height}px`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: alignSelf,
+                pointerEvents: 'none',
+                gap: `${Math.max(2, fit.fontSize * 0.2)}px`,
+              }}
+            >
+              {fit.lines.map((_, idx) => {
+                const isLastLine = idx === fit.lines.length - 1;
+                const widthPercent = fit.lines.length > 1 && isLastLine ? '60%' : '90%';
+                return (
+                  <div
+                    key={idx}
+                    data-testid={`mask-line-${el.id}-${idx}`}
+                    style={{
+                      backgroundColor: '#CCCCCC',
+                      borderRadius: `${Math.max(2, fit.fontSize * 0.1)}px`,
+                      width: widthPercent,
+                      height: `${fit.fontSize * 0.6}px`,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          );
+        }
+
+        if (el.type === 'item_card') {
+          return (
+            <div
+              key={el.id}
+              data-testid={`item-card-${el.contentRef}`}
+              style={{
+                position: 'absolute',
+                left: `${el.x}px`,
+                top: `${el.y}px`,
+                width: `${el.width}px`,
+                height: `${el.height}px`,
+                border: el.style.border ? `2px solid ${brand.colors.muted || '#CCCCCC'}` : 'none',
+                backgroundColor: 'transparent',
+                borderRadius: '8px',
+                pointerEvents: 'none',
+              }}
+            />
+          );
+        }
+
+        if (el.type === 'image') {
+          const asset = assets?.find((a) => a.id === el.contentRef);
+          const focalX = asset?.focalPoint?.x ?? 0.5;
+          const focalY = asset?.focalPoint?.y ?? 0.5;
+
+          // Determine object-fit based on whether it is a logo or standard image fit mode
+          const isLogo = asset?.type === 'logo' || el.contentRef === brand.logoAssetId;
+          const fitMode = isLogo
+            ? 'contain'
+            : el.style.variant === 'contain'
+            ? 'contain'
+            : 'cover'; // crop / cover centered around focalPoint coordinates
+
+          return (
+            <div
+              key={el.id}
+              data-testid={`image-frame-${el.id}`}
+              style={{
+                position: 'absolute',
+                left: `${el.x}px`,
+                top: `${el.y}px`,
+                width: `${el.width}px`,
+                height: `${el.height}px`,
+                backgroundColor: '#EAEAEA',
+                borderRadius: '4px',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {asset ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={asset.filePath}
+                  alt={asset.name}
+                  data-testid={`image-${el.id}`}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: fitMode,
+                    objectPosition: `${focalX * 100}% ${focalY * 100}%`,
+                  }}
+                />
+              ) : (
+                <div
+                  data-testid={`image-placeholder-${el.id}`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '100%',
+                    height: '100%',
+                  }}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#999999"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      opacity: 0.5,
+                    }}
+                  >
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        if (el.type === 'shape' || el.type === 'background') {
+          return (
+            <div
+              key={el.id}
+              data-testid={`shape-${el.id}`}
+              style={{
+                position: 'absolute',
+                left: `${el.x}px`,
+                top: `${el.y}px`,
+                width: `${el.width}px`,
+                height: `${el.height}px`,
+                backgroundColor: el.style.backgroundColor || brand.colors.muted || '#CCCCCC',
+                opacity: el.style.opacity ?? 1,
+                pointerEvents: 'none',
+              }}
+            />
+          );
+        }
+
+        // Return empty container for non-visual layout components (like groups, transparent zones)
+        return (
+          <div
+            key={el.id}
+            style={{
+              position: 'absolute',
+              left: `${el.x}px`,
+              top: `${el.y}px`,
+              width: `${el.width}px`,
+              height: `${el.height}px`,
+              pointerEvents: 'none',
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+};
