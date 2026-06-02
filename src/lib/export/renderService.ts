@@ -6,6 +6,7 @@ import { fitText } from '../layout/textFit';
 import { getElementText } from '../../components/renderer/BackgroundRenderer';
 
 let sharedBrowser: Browser | null = null;
+let sharedBrowserPromise: Promise<Browser> | null = null;
 
 class ConcurrencyLimiter {
   private limit: number;
@@ -41,12 +42,25 @@ class ConcurrencyLimiter {
 const limiter = new ConcurrencyLimiter(3);
 
 async function getSharedBrowser(): Promise<Browser> {
-  if (!sharedBrowser || !sharedBrowser.isConnected()) {
-    sharedBrowser = await chromium.launch({
-      headless: true,
-    });
+  if (sharedBrowser?.isConnected()) {
+    return sharedBrowser;
   }
-  return sharedBrowser;
+
+  if (!sharedBrowserPromise) {
+    sharedBrowserPromise = chromium
+      .launch({
+        headless: true,
+      })
+      .then((browser) => {
+        sharedBrowser = browser;
+        return browser;
+      })
+      .finally(() => {
+        sharedBrowserPromise = null;
+      });
+  }
+
+  return sharedBrowserPromise;
 }
 
 /**
