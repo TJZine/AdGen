@@ -1,9 +1,33 @@
 import { chromium, type Browser, type BrowserContext } from '@playwright/test';
 import { prisma } from '../db';
-import { ProjectSchema } from '../schemas/project';
+import { ProjectSchema, type Project, type LayoutElement, type Section } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
 import { fitText } from '../layout/textFit';
 import { getElementText } from '../../components/renderer/BackgroundRenderer';
+
+function getNumSlides(project: Project): number {
+  if (project.layout?.layoutFamily !== 'social_carousel') {
+    return 1;
+  }
+  const elements = project.layout?.elements || [];
+  let maxSlidesFromElements = 1;
+  if (elements.length > 0) {
+    const maxX = Math.max(...elements.map((el: LayoutElement) => el.x + el.width));
+    maxSlidesFromElements = Math.max(1, Math.ceil(maxX / project.canvas.widthPx));
+  }
+  
+  const visibleSections = (project.content?.sections || []).filter(
+    (s: Section) => s.items && s.items.some((item) => item.visibility !== 'hidden')
+  );
+  let contentSlidesCount = 0;
+  visibleSections.forEach((section) => {
+    const visibleItems = (section.items || []).filter((item) => item.visibility !== 'hidden');
+    contentSlidesCount += Math.ceil(visibleItems.length / 4);
+  });
+  const maxSlidesFromContent = 1 + contentSlidesCount + 1;
+
+  return Math.max(maxSlidesFromElements, maxSlidesFromContent);
+}
 
 let sharedBrowser: Browser | null = null;
 let sharedBrowserPromise: Promise<Browser> | null = null;
@@ -98,6 +122,8 @@ export async function renderLayoutPng(
     }
 
     const { widthPx, heightPx } = projectResult.data.canvas;
+    const numSlides = getNumSlides(projectResult.data);
+    const viewportWidth = widthPx * numSlides;
 
     // 2. Get shared headless Chromium browser
     const browser = await getSharedBrowser();
@@ -107,7 +133,7 @@ export async function renderLayoutPng(
       // 3. Create context with exact viewport size
       context = await browser.newContext({
         viewport: {
-          width: widthPx,
+          width: viewportWidth,
           height: heightPx,
         },
         deviceScaleFactor: 1,
@@ -182,6 +208,8 @@ export async function renderLayoutImages(
     }
 
     const { widthPx, heightPx } = projectResult.data.canvas;
+    const numSlides = getNumSlides(projectResult.data);
+    const viewportWidth = widthPx * numSlides;
 
     const browser = await getSharedBrowser();
     let context: BrowserContext | undefined = undefined;
@@ -189,7 +217,7 @@ export async function renderLayoutImages(
     try {
       context = await browser.newContext({
         viewport: {
-          width: widthPx,
+          width: viewportWidth,
           height: heightPx,
         },
         deviceScaleFactor: 1,
@@ -270,6 +298,8 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
     }
 
     const { widthPx, heightPx } = projectResult.data.canvas;
+    const numSlides = getNumSlides(projectResult.data);
+    const viewportWidth = widthPx * numSlides;
 
     // 2. Get shared headless Chromium browser
     const browser = await getSharedBrowser();
@@ -279,7 +309,7 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
       // 3. Create context with exact viewport size
       context = await browser.newContext({
         viewport: {
-          width: widthPx,
+          width: viewportWidth,
           height: heightPx,
         },
         deviceScaleFactor: 1,
@@ -356,6 +386,8 @@ export async function renderLayoutOverlaySvg(projectId: string): Promise<string>
 
   const project = projectResult.data;
   const { widthPx, heightPx } = project.canvas;
+  const numSlides = getNumSlides(project);
+  const totalWidth = widthPx * numSlides;
 
   // 2. Solve dynamic layout coordinates
   const solved = solveLayout(project);
@@ -432,7 +464,7 @@ export async function renderLayoutOverlaySvg(projectId: string): Promise<string>
 
   // Wrap all text elements in svg tag
   const svgOutput = [
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${widthPx} ${heightPx}" width="${widthPx}" height="${heightPx}">`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${heightPx}" width="${totalWidth}" height="${heightPx}">`,
     ...svgLines,
     `</svg>`
   ].join('\n');
@@ -528,6 +560,8 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
     }
 
     const { widthPx, heightPx } = projectResult.data.canvas;
+    const numSlides = getNumSlides(projectResult.data);
+    const viewportWidth = widthPx * numSlides;
 
     // 2. Get shared browser instance
     const browser = await getSharedBrowser();
@@ -537,7 +571,7 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
       // 3. Create context with exact viewport size
       context = await browser.newContext({
         viewport: {
-          width: widthPx,
+          width: viewportWidth,
           height: heightPx,
         },
         deviceScaleFactor: 1,
@@ -568,7 +602,7 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
 
       // 7. Run page.pdf with exact dimensions in pixels
       const pdfBuffer = await page.pdf({
-        width: `${widthPx}px`,
+        width: `${viewportWidth}px`,
         height: `${heightPx}px`,
         printBackground: true,
         preferCSSPageSize: true,

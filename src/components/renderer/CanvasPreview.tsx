@@ -19,6 +19,13 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   const { canvas } = project;
   const numSlides = project.layout?.layoutFamily === 'social_carousel'
     ? (() => {
+        const elementsList = project.layout.elements || [];
+        let maxSlidesFromElements = 1;
+        if (elementsList.length > 0) {
+          const maxX = Math.max(...elementsList.map(el => el.x + el.width));
+          maxSlidesFromElements = Math.max(1, Math.ceil(maxX / canvas.widthPx));
+        }
+        
         const visibleSections = project.content.sections.filter(
           (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
         );
@@ -27,7 +34,8 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
           const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
           contentSlidesCount += Math.ceil(visibleItems.length / 4);
         });
-        return 1 + contentSlidesCount + 1;
+        const maxSlidesFromContent = 1 + contentSlidesCount + 1;
+        return Math.max(maxSlidesFromElements, maxSlidesFromContent);
       })()
     : 1;
 

@@ -86,6 +86,38 @@ export const LeftSidebar: React.FC = () => {
     updateProjectField('layout.layoutFamily', suggested);
   };
 
+  const handleAddQRCode = () => {
+    const existingElements = project.layout.elements || [];
+    const newElement = {
+      id: `qr-code-${Date.now()}`,
+      type: 'qr_code' as const,
+      contentRef: 'brand.website',
+      x: canvas.safeMarginPx,
+      y: canvas.safeMarginPx,
+      width: 120,
+      height: 120,
+      locked: true,
+      style: {},
+    };
+    updateProjectField('layout.elements', [...existingElements, newElement]);
+  };
+
+  const handleAddAIZone = () => {
+    const existingElements = project.layout.elements || [];
+    const newElement = {
+      id: `ai-zone-${Date.now()}`,
+      type: 'ai_instruction_zone' as const,
+      contentRef: 'keep this area clean for product shadows',
+      x: canvas.safeMarginPx,
+      y: canvas.safeMarginPx,
+      width: 200,
+      height: 100,
+      locked: true,
+      style: {},
+    };
+    updateProjectField('layout.elements', [...existingElements, newElement]);
+  };
+
   const handleImport = () => {
     const { sections } = parseSpreadsheet(importText);
     if (sections && sections.length > 0) {
@@ -256,6 +288,33 @@ export const LeftSidebar: React.FC = () => {
                   {density}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <hr className="border-zinc-200" />
+
+          <hr className="border-zinc-200" />
+
+          {/* Manual Canvas Elements */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-zinc-950">Add Elements</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                data-testid="add-qr-code-btn"
+                onClick={handleAddQRCode}
+                className="bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border border-zinc-300 rounded py-2 text-xs font-semibold uppercase tracking-wider transition cursor-pointer text-center"
+              >
+                Add QR Code
+              </button>
+              <button
+                type="button"
+                data-testid="add-ai-zone-btn"
+                onClick={handleAddAIZone}
+                className="bg-zinc-50 hover:bg-zinc-100 text-zinc-700 border border-zinc-300 rounded py-2 text-xs font-semibold uppercase tracking-wider transition cursor-pointer text-center"
+              >
+                Add AI Zone
+              </button>
             </div>
           </div>
 

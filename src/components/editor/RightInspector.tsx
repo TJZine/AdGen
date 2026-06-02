@@ -3,7 +3,7 @@
 import React, { useRef } from 'react';
 import { useEditorStore } from '@/lib/store/editorStore';
 import { calculateNormalizedCoords } from '@/lib/utils/crop';
-import { Section, Item } from '@/lib/schemas/project';
+import { Section, Item, LayoutElement } from '@/lib/schemas/project';
 
 export const RightInspector: React.FC = () => {
   const {
@@ -54,23 +54,45 @@ export const RightInspector: React.FC = () => {
   };
 
   // 1. Identify selected element type and find its reference
-  let selectedType: 'item' | 'section' | 'general' = 'general';
+  let selectedType: 'item' | 'section' | 'layout_element' | 'general' = 'general';
   let selectedItem: Item | null = null;
   let selectedSection: Section | null = null;
+  let selectedLayoutElement: LayoutElement | null = null;
 
-  for (const s of project.content.sections) {
-    if (s.id === selectedElementId) {
-      selectedType = 'section';
-      selectedSection = s;
-      break;
-    }
-    const foundItem = s.items.find((it) => it.id === selectedElementId);
-    if (foundItem) {
-      selectedType = 'item';
-      selectedItem = foundItem;
-      break;
+  const foundLayoutElement = project.layout?.elements?.find((el) => el.id === selectedElementId);
+  if (foundLayoutElement && (foundLayoutElement.type === 'qr_code' || foundLayoutElement.type === 'ai_instruction_zone')) {
+    selectedType = 'layout_element';
+    selectedLayoutElement = foundLayoutElement;
+  } else {
+    for (const s of project.content.sections) {
+      if (s.id === selectedElementId) {
+        selectedType = 'section';
+        selectedSection = s;
+        break;
+      }
+      const foundItem = s.items.find((it) => it.id === selectedElementId);
+      if (foundItem) {
+        selectedType = 'item';
+        selectedItem = foundItem;
+        break;
+      }
     }
   }
+
+  const handleLayoutElementFieldChange = (updates: Partial<typeof selectedLayoutElement>) => {
+    if (!selectedLayoutElement) return;
+    const nextElements = (project.layout.elements || []).map((el) => {
+      if (el.id === selectedLayoutElement.id) {
+        return {
+          ...el,
+          ...updates,
+          locked: true,
+        };
+      }
+      return el;
+    });
+    updateProjectField('layout.elements', nextElements);
+  };
 
   // Handle Focal Point Crop click
   const handleFocalPointClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -307,6 +329,90 @@ export const RightInspector: React.FC = () => {
               <option value="list">Vertical List</option>
               <option value="featured_hero">Featured Hero Card First</option>
             </select>
+          </div>
+        </div>
+      </aside>
+    );
+  }
+
+  // RENDER LAYOUT ELEMENT INSPECTOR (QR Code & AI Instruction Zone)
+  if (selectedType === 'layout_element' && selectedLayoutElement) {
+    const isQrCode = selectedLayoutElement.type === 'qr_code';
+    return (
+      <aside className="w-80 border-l border-zinc-200 bg-white flex flex-col h-full overflow-y-auto p-5 gap-5 text-sm text-zinc-700">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs uppercase font-semibold text-zinc-400 tracking-wider">Inspector</span>
+          <h2 className="text-base font-bold text-zinc-950 truncate">
+            {isQrCode ? 'QR Code Element' : 'AI Instruction Zone'}
+          </h2>
+        </div>
+
+        <hr className="border-zinc-200" />
+
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="font-semibold text-zinc-900">
+              {isQrCode ? 'QR Value / Link' : 'Instruction Note'}
+            </label>
+            {isQrCode ? (
+              <input
+                type="text"
+                value={selectedLayoutElement.contentRef}
+                onChange={(e) => handleLayoutElementFieldChange({ contentRef: e.target.value })}
+                placeholder="e.g. brand.website or custom link"
+                className="border border-zinc-300 rounded px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950"
+              />
+            ) : (
+              <textarea
+                value={selectedLayoutElement.contentRef}
+                onChange={(e) => handleLayoutElementFieldChange({ contentRef: e.target.value })}
+                placeholder="Instruction text for AI visual generation"
+                rows={4}
+                className="border border-zinc-300 rounded px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 resize-none"
+              />
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="font-semibold text-zinc-900">X (px)</label>
+              <input
+                type="number"
+                value={selectedLayoutElement.x}
+                onChange={(e) => handleLayoutElementFieldChange({ x: parseInt(e.target.value) || 0 })}
+                className="border border-zinc-300 rounded px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-semibold text-zinc-900">Y (px)</label>
+              <input
+                type="number"
+                value={selectedLayoutElement.y}
+                onChange={(e) => handleLayoutElementFieldChange({ y: parseInt(e.target.value) || 0 })}
+                className="border border-zinc-300 rounded px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1">
+              <label className="font-semibold text-zinc-900">Width (px)</label>
+              <input
+                type="number"
+                value={selectedLayoutElement.width}
+                onChange={(e) => handleLayoutElementFieldChange({ width: parseInt(e.target.value) || 0 })}
+                className="border border-zinc-300 rounded px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 font-mono"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="font-semibold text-zinc-900">Height (px)</label>
+              <input
+                type="number"
+                value={selectedLayoutElement.height}
+                onChange={(e) => handleLayoutElementFieldChange({ height: parseInt(e.target.value) || 0 })}
+                className="border border-zinc-300 rounded px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 font-mono"
+              />
+            </div>
           </div>
         </div>
       </aside>

@@ -55,6 +55,18 @@ export function compilePrompt(project: Project): string {
     )
     .join('\n');
 
+  const instructionZones = (project.layout?.elements || []).filter(
+    (el) => el.type === 'ai_instruction_zone'
+  );
+
+  let instructionSection = '';
+  if (instructionZones.length > 0) {
+    instructionSection = `\n## Spatial AI Design Zone Instructions\n` +
+      instructionZones
+        .map((el) => `Box coordinates [x: ${el.x}, y: ${el.y}, w: ${el.width}, h: ${el.height}]: ${el.contentRef}`)
+        .join('\n') + `\n`;
+  }
+
   return `# AI Visual Polish Prompt Instructions
 
 ## Target Style & Mood
@@ -65,7 +77,7 @@ export function compilePrompt(project: Project): string {
 ## Composition Layout (Structure Reference)
 This visual prompt corresponds to a structural grid layout of ${sections.length} sections and ${totalItems} product item cards:
 ${sectionSummary}
-
+${instructionSection}
 ## Downstream AI Prompt (Copy/Paste this to your AI Image Generator)
 > A professional commercial poster layout background for a product inventory board.
 > Style keywords: ${keywords}.

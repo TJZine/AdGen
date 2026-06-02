@@ -5,6 +5,7 @@ import { Project, LayoutElement } from '../../lib/schemas/project';
 import { fitText } from '../../lib/layout/textFit';
 import { getElementText } from './BackgroundRenderer';
 import { useEditorStore } from '../../lib/store/editorStore';
+import { QRCodeImage } from './QRCodeImage';
 
 export interface OverlayRendererProps {
   project: Project;
@@ -222,6 +223,30 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
     zIndex: 10,
   };
 
+  const numSlides = project.layout?.layoutFamily === 'social_carousel'
+    ? (() => {
+        const elementsList = project.layout.elements || [];
+        let maxSlidesFromElements = 1;
+        if (elementsList.length > 0) {
+          const maxX = Math.max(...elementsList.map(el => el.x + el.width));
+          maxSlidesFromElements = Math.max(1, Math.ceil(maxX / canvas.widthPx));
+        }
+        
+        const visibleSections = project.content.sections.filter(
+          (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
+        );
+        let contentSlidesCount = 0;
+        visibleSections.forEach((section) => {
+          const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
+          contentSlidesCount += Math.ceil(visibleItems.length / 4);
+        });
+        const maxSlidesFromContent = 1 + contentSlidesCount + 1;
+        return Math.max(maxSlidesFromElements, maxSlidesFromContent);
+      })()
+    : 1;
+
+  const totalWidth = canvas.widthPx * numSlides;
+
   return (
     <div
       data-testid="overlay-renderer"
@@ -229,7 +254,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
         position: 'absolute',
         top: 0,
         left: 0,
-        width: `${canvas.widthPx}px`,
+        width: `${totalWidth}px`,
         height: `${canvas.heightPx}px`,
         backgroundColor: 'transparent',
         overflow: 'hidden',
@@ -242,6 +267,132 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
       }}
     >
       {elements.map((el: LayoutElement) => {
+        const isSelected = selectedElementId === el.id;
+        const currentX = (dragState?.elementId === el.id && tempCoords) ? tempCoords.x : el.x;
+        const currentY = (dragState?.elementId === el.id && tempCoords) ? tempCoords.y : el.y;
+        const currentWidth = (dragState?.elementId === el.id && tempCoords) ? tempCoords.width : el.width;
+        const currentHeight = (dragState?.elementId === el.id && tempCoords) ? tempCoords.height : el.height;
+
+        if (el.type === 'qr_code') {
+          let qrText = el.contentRef;
+          if (qrText === 'brand.website') {
+            qrText = brand.website;
+          }
+          if (!qrText) {
+            qrText = brand.website || 'https://example.com';
+          }
+
+          return (
+            <div
+              key={el.id}
+              data-testid={`qr-code-overlay-${el.id}`}
+              style={{
+                position: 'absolute',
+                left: `${currentX}px`,
+                top: `${currentY}px`,
+                width: `${currentWidth}px`,
+                height: `${currentHeight}px`,
+                backgroundColor: '#FFFFFF',
+                border: isSelected ? '1.5px solid #3b82f6' : `1px solid ${brand.colors.muted || '#CCCCCC'}`,
+                borderRadius: '4px',
+                overflow: 'visible',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'move',
+                pointerEvents: 'auto',
+                boxSizing: 'border-box',
+              }}
+              onMouseDown={(e) => handleElementMouseDown(e, el)}
+            >
+              <QRCodeImage text={qrText} width={currentWidth} height={currentHeight} />
+              
+              {isSelected && (
+                <>
+                  <div
+                    data-testid={`resize-handle-nw-${el.id}`}
+                    style={{ ...handleStyle, top: '-4px', left: '-4px', cursor: 'nwse-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'nw')}
+                  />
+                  <div
+                    data-testid={`resize-handle-ne-${el.id}`}
+                    style={{ ...handleStyle, top: '-4px', right: '-4px', cursor: 'nesw-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'ne')}
+                  />
+                  <div
+                    data-testid={`resize-handle-se-${el.id}`}
+                    style={{ ...handleStyle, bottom: '-4px', right: '-4px', cursor: 'nwse-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'se')}
+                  />
+                  <div
+                    data-testid={`resize-handle-sw-${el.id}`}
+                    style={{ ...handleStyle, bottom: '-4px', left: '-4px', cursor: 'nesw-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'sw')}
+                  />
+                </>
+              )}
+            </div>
+          );
+        }
+
+        if (el.type === 'ai_instruction_zone') {
+          const isRenderCanvas = typeof window !== 'undefined' && window.location.pathname.includes('/render-canvas');
+          if (isRenderCanvas) return null;
+
+          return (
+            <div
+              key={el.id}
+              data-testid={`ai-instruction-zone-overlay-${el.id}`}
+              style={{
+                position: 'absolute',
+                left: `${currentX}px`,
+                top: `${currentY}px`,
+                width: `${currentWidth}px`,
+                height: `${currentHeight}px`,
+                border: isSelected ? '2px dashed #3b82f6' : '2px dashed #9333ea',
+                backgroundColor: 'rgba(147, 51, 234, 0.05)',
+                color: '#9333ea',
+                padding: '8px',
+                boxSizing: 'border-box',
+                overflow: 'visible',
+                cursor: 'move',
+                pointerEvents: 'auto',
+                fontSize: '12px',
+                fontWeight: 'semibold',
+              }}
+              onMouseDown={(e) => handleElementMouseDown(e, el)}
+            >
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>AI Instruction Zone</div>
+              <div>{el.contentRef}</div>
+
+              {isSelected && (
+                <>
+                  <div
+                    data-testid={`resize-handle-nw-${el.id}`}
+                    style={{ ...handleStyle, top: '-4px', left: '-4px', cursor: 'nwse-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'nw')}
+                  />
+                  <div
+                    data-testid={`resize-handle-ne-${el.id}`}
+                    style={{ ...handleStyle, top: '-4px', right: '-4px', cursor: 'nesw-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'ne')}
+                  />
+                  <div
+                    data-testid={`resize-handle-se-${el.id}`}
+                    style={{ ...handleStyle, bottom: '-4px', right: '-4px', cursor: 'nwse-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'se')}
+                  />
+                  <div
+                    data-testid={`resize-handle-sw-${el.id}`}
+                    style={{ ...handleStyle, bottom: '-4px', left: '-4px', cursor: 'nesw-resize' }}
+                    onMouseDown={(e) => handleResizeMouseDown(e, el, 'sw')}
+                  />
+                </>
+              )}
+            </div>
+          );
+        }
+
         const isTextElement = ['text', 'price', 'badge', 'footer', 'section_header'].includes(el.type);
 
         if (!isTextElement) {
@@ -252,12 +403,6 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
         if (!text) {
           return null;
         }
-
-        const isSelected = selectedElementId === el.id;
-        const currentX = (dragState?.elementId === el.id && tempCoords) ? tempCoords.x : el.x;
-        const currentY = (dragState?.elementId === el.id && tempCoords) ? tempCoords.y : el.y;
-        const currentWidth = (dragState?.elementId === el.id && tempCoords) ? tempCoords.width : el.width;
-        const currentHeight = (dragState?.elementId === el.id && tempCoords) ? tempCoords.height : el.height;
 
         let baseFontSize = el.style.fontSize || 14;
         if (el.type === 'section_header' && !el.style.fontSize) {

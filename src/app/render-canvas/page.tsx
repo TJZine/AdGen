@@ -94,23 +94,51 @@ export default async function RenderCanvasPage({
           )}:wght@400;500;700&display=swap`}
         />
       ))}
-      <div
-        style={{
-          margin: 0,
-          padding: 0,
-          overflow: 'hidden',
-          width: `${project.canvas.widthPx}px`,
-          height: `${project.canvas.heightPx}px`,
-        }}
-      >
-        <CanvasPreview
-          project={solvedProject}
-          assets={assets}
-          zoom={1}
-          showBackground={showBackground}
-          showOverlay={showOverlay}
-        />
-      </div>
+      {(() => {
+        const numSlides = solvedProject.layout?.layoutFamily === 'social_carousel'
+          ? (() => {
+              const elementsList = solvedProject.layout.elements || [];
+              let maxSlidesFromElements = 1;
+              if (elementsList.length > 0) {
+                const maxX = Math.max(...elementsList.map(el => el.x + el.width));
+                maxSlidesFromElements = Math.max(1, Math.ceil(maxX / solvedProject.canvas.widthPx));
+              }
+              
+              const visibleSections = solvedProject.content.sections.filter(
+                (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
+              );
+              let contentSlidesCount = 0;
+              visibleSections.forEach((section) => {
+                const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
+                contentSlidesCount += Math.ceil(visibleItems.length / 4);
+              });
+              const maxSlidesFromContent = 1 + contentSlidesCount + 1;
+              return Math.max(maxSlidesFromElements, maxSlidesFromContent);
+            })()
+          : 1;
+
+        const totalWidth = solvedProject.canvas.widthPx * numSlides;
+
+        return (
+          <div
+            style={{
+              margin: 0,
+              padding: 0,
+              overflow: 'hidden',
+              width: `${totalWidth}px`,
+              height: `${solvedProject.canvas.heightPx}px`,
+            }}
+          >
+            <CanvasPreview
+              project={solvedProject}
+              assets={assets}
+              zoom={1}
+              showBackground={showBackground}
+              showOverlay={showOverlay}
+            />
+          </div>
+        );
+      })()}
     </>
   );
 }

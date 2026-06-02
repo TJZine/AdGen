@@ -57,6 +57,42 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
       break;
   }
 
+  // Preserve and add special elements (QR Codes & AI Instruction Zones)
+  const existingSpecialElements = (project.layout?.elements || []).filter(
+    (el) => el.type === 'qr_code' || el.type === 'ai_instruction_zone'
+  );
+
+  existingSpecialElements.forEach((specEl) => {
+    const alreadyExists = elements.some((e) => e.id === specEl.id);
+    if (!alreadyExists) {
+      elements.push(specEl);
+    }
+  });
+
+  const hasQrCode = elements.some((e) => e.type === 'qr_code');
+  if (project.brand.website && !hasQrCode) {
+    const qrSize = 120;
+    const footerEl = elements.find((e) => e.type === 'footer');
+    const safeMargin = project.canvas.safeMarginPx;
+    const defaultX = project.canvas.widthPx - safeMargin - qrSize;
+    let defaultY = project.canvas.heightPx - safeMargin - qrSize;
+    if (footerEl) {
+      defaultY = Math.max(safeMargin, footerEl.y - qrSize - 10);
+    }
+
+    elements.push({
+      id: 'qr-code-default',
+      type: 'qr_code',
+      contentRef: 'brand.website',
+      x: defaultX,
+      y: defaultY,
+      width: qrSize,
+      height: qrSize,
+      locked: false,
+      style: {},
+    });
+  }
+
   // Determine total bounds width (multiple pages for social carousel)
   const numSlides = family === 'social_carousel' ? calculateSocialCarouselSlides(project) : 1;
 
