@@ -181,9 +181,13 @@ export function getNumSlides(project: Project): number {
   }
   const elements = project.layout?.elements || [];
   let maxSlidesFromElements = 1;
+  const canvasWidth = typeof project.canvas?.widthPx === 'number' && Number.isFinite(project.canvas.widthPx) && project.canvas.widthPx > 0
+    ? project.canvas.widthPx
+    : 2550; // safe fallback (defaults to standard letter width)
+
   if (elements.length > 0) {
     const maxX = Math.max(...elements.map((el) => el.x + el.width));
-    maxSlidesFromElements = Math.max(1, Math.ceil(maxX / project.canvas.widthPx));
+    maxSlidesFromElements = Math.max(1, Math.ceil(maxX / canvasWidth));
   }
   
   const visibleSections = (project.content?.sections || []).filter(
