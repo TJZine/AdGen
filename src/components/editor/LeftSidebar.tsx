@@ -682,21 +682,22 @@ interface RawSection {
   items?: RawItem[];
 }
 
-const sanitizeMetadata = (meta: any) => {
+const sanitizeMetadata = (meta: unknown): { tags: string[] } & Record<string, unknown> => {
   if (!meta || typeof meta !== 'object') {
     return { tags: [] };
   }
-  const cleanMeta: Record<string, any> = { tags: [] };
-  for (const key of Object.keys(meta)) {
+  const metaObj = meta as Record<string, unknown>;
+  const cleanMeta: { tags: string[] } & Record<string, unknown> = { tags: [] };
+  for (const key of Object.keys(metaObj)) {
     if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
       continue;
     }
-    if (key === 'tags' && Array.isArray(meta.tags)) {
-      cleanMeta.tags = meta.tags
-        .filter((t: any) => typeof t === 'string' || typeof t === 'number')
-        .map((t: any) => sanitizeSpreadsheetFormula(String(t)));
+    if (key === 'tags' && Array.isArray(metaObj.tags)) {
+      cleanMeta.tags = metaObj.tags
+        .filter((t: unknown) => typeof t === 'string' || typeof t === 'number')
+        .map((t: unknown) => sanitizeSpreadsheetFormula(String(t)));
     } else {
-      const val = meta[key];
+      const val = metaObj[key];
       if (typeof val === 'string') {
         cleanMeta[key] = sanitizeSpreadsheetFormula(val);
       } else if (typeof val === 'number' || typeof val === 'boolean' || val === null) {

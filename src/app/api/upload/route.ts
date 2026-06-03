@@ -7,6 +7,7 @@ import path from 'path';
 import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
+  const succeededAssets: { id: string; filePath: string }[] = [];
   try {
     const isBulk = request.nextUrl.searchParams.get('bulk') === 'true';
 
@@ -40,8 +41,6 @@ export async function POST(request: NextRequest) {
         );
       }
     }
-
-    const succeededAssets: { id: string; filePath: string }[] = [];
 
     const processFile = async (file: File) => {
       const bytes = await file.arrayBuffer();
@@ -91,9 +90,7 @@ export async function POST(request: NextRequest) {
           name: file.name,
           type: 'image',
           filePath: relativeUrl,
-          mime: detected.mime,
           mimeType: detected.mime,
-          size: processedBuffer.length,
           sizeBytes: processedBuffer.length,
           width: metadata.width ?? null,
           height: metadata.height ?? null,
