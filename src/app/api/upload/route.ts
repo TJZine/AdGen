@@ -80,6 +80,15 @@ export async function POST(request: NextRequest) {
 
       const ext = (detected.ext === 'jpg' || detected.ext === 'jpeg') ? 'jpg' : detected.ext === 'png' ? 'png' : 'webp';
 
+      // Read metadata first without decompressing pixel data (decompression bomb protection)
+      const initialMetadata = await sharp(buffer).metadata();
+      if (initialMetadata.width && initialMetadata.width > 8000) {
+        throw new Error(`Image width exceeds safety limit of 8000px (got ${initialMetadata.width}px).`);
+      }
+      if (initialMetadata.height && initialMetadata.height > 8000) {
+        throw new Error(`Image height exceeds safety limit of 8000px (got ${initialMetadata.height}px).`);
+      }
+
       // Process image via sharp to strip all metadata and optimize it
       // Call rotate() to respect EXIF orientation before saving!
       const sharpInstance = sharp(buffer).rotate();
