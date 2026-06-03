@@ -41,6 +41,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const succeededAssets: { id: string; filePath: string }[] = [];
+
     const processFile = async (file: File) => {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
@@ -80,6 +82,8 @@ export async function POST(request: NextRequest) {
       // Save optimized file to disk
       await fs.writeFile(filePath, processedBuffer);
 
+      succeededAssets.push({ id: uuid, filePath });
+
       // Insert database Asset entry using Prisma
       const asset = await prisma.asset.create({
         data: {
@@ -114,6 +118,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(assets);
   } catch (error: unknown) {
     console.error('Error uploading file(s):', error);
+
+    // Rollback any successfully created files/database entries to prevent orphans
+    for (const asset of succeededAssets) {
+      try {
+        await fs.unlink(asset.filePath);
+      } catch (err) {
+        console.error(`Failed to cleanup file ${asset.filePath}:`, err);
+      }
+      try {
+        await prisma.asset.delete({ where: { id: asset.id } }).catch(() => {});
+      } catch (err) {
+        console.error(`Failed to cleanup database entry for asset ${asset.id}:`, err);
+      }
+    }
+
     const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json(
       { error: errorMessage },
