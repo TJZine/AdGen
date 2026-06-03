@@ -7,6 +7,7 @@ import { getElementText } from '@/lib/renderer/utils';
 import { useEditorStore } from '../../lib/store/editorStore';
 import { QRCodeImage } from './QRCodeImage';
 import { isDarkColor } from '@/lib/utils/color';
+import { getNumSlides } from '@/lib/layout/solver';
 
 export interface OverlayRendererProps {
   project: Project;
@@ -213,27 +214,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
     zIndex: 10,
   };
 
-  const numSlides = project.layout?.layoutFamily === 'social_carousel'
-    ? (() => {
-        const elementsList = project.layout.elements || [];
-        let maxSlidesFromElements = 1;
-        if (elementsList.length > 0) {
-          const maxX = Math.max(...elementsList.map(el => el.x + el.width));
-          maxSlidesFromElements = Math.max(1, Math.ceil(maxX / canvas.widthPx));
-        }
-        
-        const visibleSections = project.content.sections.filter(
-          (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
-        );
-        let contentSlidesCount = 0;
-        visibleSections.forEach((section) => {
-          const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
-          contentSlidesCount += Math.ceil(visibleItems.length / 4);
-        });
-        const maxSlidesFromContent = 1 + contentSlidesCount + 1;
-        return Math.max(maxSlidesFromElements, maxSlidesFromContent);
-      })()
-    : 1;
+  const numSlides = getNumSlides(project);
 
   const totalWidth = canvas.widthPx * numSlides;
 

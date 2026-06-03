@@ -172,17 +172,9 @@ const mockAssets: Asset[] = [
 
 describe('Zustand Editor Store', () => {
   beforeEach(() => {
-    // Reset Zustand store state before each test
-    useEditorStore.setState({
-      project: JSON.parse(JSON.stringify(mockProject)),
-      assets: [...mockAssets],
-      selectedElementId: null,
-      zoom: 0.75,
-      undoStack: [],
-      redoStack: [],
-      isSaving: false,
-      hasUnsavedChanges: false,
-    });
+    // Reset Zustand store state before each test using the official setProject API
+    // which also resets history debounce variables.
+    useEditorStore.getState().setProject(JSON.parse(JSON.stringify(mockProject)), mockAssets);
   });
 
   it('should initialize state correctly using setProject', () => {
@@ -225,11 +217,14 @@ describe('Zustand Editor Store', () => {
   });
 
   it('should handle undo and redo properly', () => {
+    vi.useFakeTimers();
     const store = useEditorStore.getState();
 
     // 1. Initial State: Name = "Test Project"
     store.updateProjectField('name', 'Edit One'); // undoStack = ["Test Project"]
+    vi.advanceTimersByTime(1001);
     store.updateProjectField('name', 'Edit Two'); // undoStack = ["Test Project", "Edit One"]
+    vi.advanceTimersByTime(1001);
 
     let state = useEditorStore.getState();
     expect(state.project.name).toBe('Edit Two');
@@ -263,6 +258,7 @@ describe('Zustand Editor Store', () => {
     expect(state.project.name).toBe('Edit Two');
     expect(state.undoStack).toHaveLength(2);
     expect(state.redoStack).toHaveLength(0);
+    vi.useRealTimers();
   });
 
   it('should update section properties', () => {

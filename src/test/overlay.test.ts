@@ -128,6 +128,10 @@ describe('Export Overlay API Route', () => {
 
   it('returns 200 with transparent PNG buffer on success', async () => {
     const fakeBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG signature
+    vi.mocked(prisma.project.findUnique).mockResolvedValue({
+      id: 'uuid-123',
+      ownerId: 'dev_user',
+    } as unknown as import('@prisma/client').Project);
     vi.mocked(renderLayoutOverlayPng).mockResolvedValueOnce(fakeBuffer);
 
     const req = new NextRequest('http://localhost:3000/api/export/overlay?id=uuid-123&format=png');
@@ -140,6 +144,10 @@ describe('Export Overlay API Route', () => {
 
   it('returns 200 with SVG content on success', async () => {
     const fakeSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3300 5100" width="3300" height="5100"></svg>';
+    vi.mocked(prisma.project.findUnique).mockResolvedValue({
+      id: 'uuid-123',
+      ownerId: 'dev_user',
+    } as unknown as import('@prisma/client').Project);
     vi.mocked(renderLayoutOverlaySvg).mockResolvedValueOnce(fakeSvg);
 
     const req = new NextRequest('http://localhost:3000/api/export/overlay?id=uuid-123&format=svg');
@@ -152,7 +160,7 @@ describe('Export Overlay API Route', () => {
   });
 
   it('returns 404 if project is not found', async () => {
-    vi.mocked(renderLayoutOverlayPng).mockRejectedValueOnce(new Error('Project with ID uuid-123 not found'));
+    vi.mocked(prisma.project.findUnique).mockResolvedValue(null);
 
     const req = new NextRequest('http://localhost:3000/api/export/overlay?id=uuid-123&format=png');
     const res = await GET(req);
@@ -163,6 +171,10 @@ describe('Export Overlay API Route', () => {
   });
 
   it('returns 500 if rendering service fails unexpectedly', async () => {
+    vi.mocked(prisma.project.findUnique).mockResolvedValue({
+      id: 'uuid-123',
+      ownerId: 'dev_user',
+    } as unknown as import('@prisma/client').Project);
     vi.mocked(renderLayoutOverlayPng).mockRejectedValueOnce(new Error('Browser crashed'));
 
     const req = new NextRequest('http://localhost:3000/api/export/overlay?id=uuid-123&format=png');

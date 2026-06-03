@@ -4,6 +4,8 @@ import { RenderOptions } from '../../lib/renderer/types';
 import { BackgroundRenderer } from './BackgroundRenderer';
 import { OverlayRenderer } from './OverlayRenderer';
 
+import { getNumSlides } from '@/lib/layout/solver';
+
 export interface CanvasPreviewProps extends RenderOptions {
   project: Project;
   assets?: Asset[];
@@ -17,9 +19,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   showOverlay = true,
 }) => {
   const { canvas } = project;
-  const numSlides = project.layout?.layoutFamily === 'social_carousel'
-    ? project.content.sections.length
-    : 1;
+  const numSlides = getNumSlides(project);
 
   // Clamp and sanitize zoom to a finite positive number with a minimum bound of 0.01
   const sanitizedZoom = typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0

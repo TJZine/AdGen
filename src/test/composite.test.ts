@@ -5,6 +5,7 @@ import { POST } from '@/app/api/upload/route';
 import { GET } from '@/app/api/export/pdf/route';
 import { renderLayoutPdf } from '@/lib/export/renderService';
 import { hexToRgb, getRelativeLuminance, isDarkColor } from '@/lib/utils/color';
+import { prisma } from '@/lib/db';
 
 // Mock file-type
 vi.mock('file-type', () => ({
@@ -203,6 +204,10 @@ describe('Composite & Background Import tests', () => {
 
     it('returns 200 with PDF content headers on success', async () => {
       const fakePdfBuffer = Buffer.from('fake-pdf-content');
+      vi.mocked(prisma.project.findUnique).mockResolvedValueOnce({
+        id: 'project-uuid',
+        ownerId: 'dev_user',
+      } as unknown as import('@prisma/client').Project);
       vi.mocked(renderLayoutPdf).mockResolvedValueOnce(fakePdfBuffer);
 
       const req = new NextRequest('http://localhost:3000/api/export/pdf?id=project-uuid');
@@ -215,7 +220,7 @@ describe('Composite & Background Import tests', () => {
     });
 
     it('returns 404 if project is not found', async () => {
-      vi.mocked(renderLayoutPdf).mockRejectedValueOnce(new Error('Project with ID project-uuid not found'));
+      vi.mocked(prisma.project.findUnique).mockResolvedValueOnce(null);
 
       const req = new NextRequest('http://localhost:3000/api/export/pdf?id=project-uuid');
       const res = await GET(req);
@@ -226,6 +231,10 @@ describe('Composite & Background Import tests', () => {
     });
 
     it('returns 500 on internal browser/rendering failure', async () => {
+      vi.mocked(prisma.project.findUnique).mockResolvedValueOnce({
+        id: 'project-uuid',
+        ownerId: 'dev_user',
+      } as unknown as import('@prisma/client').Project);
       vi.mocked(renderLayoutPdf).mockRejectedValueOnce(new Error('Playwright context failed'));
 
       const req = new NextRequest('http://localhost:3000/api/export/pdf?id=project-uuid');

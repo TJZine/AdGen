@@ -65,6 +65,41 @@ export function evaluateLayout(
   }
   score -= Math.min(30, outOfBoundsDeductions);
 
+  // 4. Overlapping Top-level Elements Checks (Layout Collisions)
+  let overlapDeductions = 0;
+  const topLevelTypes = ['item_card', 'section_header', 'footer', 'qr_code', 'ai_instruction_zone'];
+  const topLevelElements = elements.filter(
+    (el) =>
+      topLevelTypes.includes(el.type) ||
+      (el.type === 'text' && (el.id === 'header-headline' || el.id === 'header-subheadline'))
+  );
+
+  const reportedPairs = new Set<string>();
+
+  for (let i = 0; i < topLevelElements.length; i++) {
+    for (let j = i + 1; j < topLevelElements.length; j++) {
+      const elA = topLevelElements[i];
+      const elB = topLevelElements[j];
+
+      if (
+        elA.x < elB.x + elB.width &&
+        elA.x + elA.width > elB.x &&
+        elA.y < elB.y + elB.height &&
+        elA.y + elA.height > elB.y
+      ) {
+        const pairKey = [elA.id, elB.id].sort().join('::');
+        if (!reportedPairs.has(pairKey)) {
+          reportedPairs.add(pairKey);
+          warnings.push(
+            `Layout collision: Element "${elA.id}" (${elA.type}) overlaps with "${elB.id}" (${elB.type}).`
+          );
+          overlapDeductions += 15;
+        }
+      }
+    }
+  }
+  score -= Math.min(30, overlapDeductions);
+
   // Clamp score
   score = Math.max(0, Math.min(100, score));
 

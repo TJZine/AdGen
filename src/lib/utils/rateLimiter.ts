@@ -66,3 +66,7 @@ class TokenBucketRateLimiter {
 // Export a singleton instance for API routes. 
 // Standard: capacity of 10, 1 token refilled every 6 seconds (10 requests per minute average, max burst 10).
 export const uploadRateLimiter = new TokenBucketRateLimiter(10, 6);
+
+// Export rate limiter for PDF/Image/Zip generation exports.
+// Restricts to 5 requests per minute per client, with a burst capacity of 5.
+export const exportRateLimiter = new TokenBucketRateLimiter(5, 12);

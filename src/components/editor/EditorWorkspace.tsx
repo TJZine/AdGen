@@ -10,6 +10,7 @@ import { OverlayRenderer } from '../renderer/OverlayRenderer';
 import { ContrastGuard } from './ContrastGuard';
 import { CanvasPreview } from '../renderer/CanvasPreview';
 import { Project, Asset } from '@/lib/schemas/project';
+import { getNumSlides } from '@/lib/layout/solver';
 
 interface EditorWorkspaceProps {
   initialProject: Project;
@@ -78,19 +79,62 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     setProject(initialProject, initialAssets);
   }, [initialProject, initialAssets, setProject]);
 
-  const numSlides = project.layout?.layoutFamily === 'social_carousel'
-    ? (() => {
-        const visibleSections = project.content.sections.filter(
-          (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
-        );
-        let contentSlidesCount = 0;
-        visibleSections.forEach((section) => {
-          const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
-          contentSlidesCount += Math.ceil(visibleItems.length / 4);
-        });
-        return 1 + contentSlidesCount + 1;
-      })()
-    : 1;
+  // Load settings from URL parameters on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    
+    const urlZoom = params.get('zoom');
+    if (urlZoom) {
+      const parsedZoom = parseFloat(urlZoom);
+      if (Number.isFinite(parsedZoom) && parsedZoom > 0) {
+        setZoom(parsedZoom);
+      }
+    }
+    
+    const urlVariant = params.get('variant');
+    if (urlVariant) {
+      selectActiveVariant(urlVariant === 'primary' ? null : urlVariant);
+    }
+    
+    const urlCompare = params.get('compare');
+    if (urlCompare) {
+      selectComparisonVariant(urlCompare === 'primary' ? null : urlCompare);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Synchronize zoom, activeVariant, and comparisonVariant to URL query parameters
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    
+    params.set('zoom', zoom.toString());
+    params.set('variant', activeVariantId || 'primary');
+    if (comparisonVariantId) {
+      params.set('compare', comparisonVariantId);
+    } else {
+      params.delete('compare');
+    }
+    
+    const newSearch = params.toString();
+    const newUrl = `${window.location.pathname}?${newSearch}`;
+    window.history.replaceState(null, '', newUrl);
+  }, [zoom, activeVariantId, comparisonVariantId]);
+
+  // Prevent loss of unsaved changes when closing or reloading the browser tab
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  const numSlides = getNumSlides(project);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-zinc-100 overflow-hidden font-sans select-none">

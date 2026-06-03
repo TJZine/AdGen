@@ -102,8 +102,10 @@ export const ContrastGuard: React.FC<ContrastGuardProps> = ({ project, assets })
 
       const elements = project.layout.elements || [];
       const newWarnings: WarningState = {};
+      let canvasTainted = false;
 
       elements.forEach((el) => {
+        if (canvasTainted) return;
         const isTextElement = ['text', 'price', 'badge', 'footer', 'section_header'].includes(el.type);
         if (!isTextElement) return;
 
@@ -184,7 +186,12 @@ export const ContrastGuard: React.FC<ContrastGuardProps> = ({ project, assets })
             };
           }
         } catch (e) {
-          console.error(`Error sampling image data for element ${el.id}:`, e);
+          if (e instanceof Error && e.name === 'SecurityError') {
+            console.warn('ContrastGuard canvas tainted (CORS restriction). Disabling real-time contrast checks.');
+            canvasTainted = true;
+          } else {
+            console.error(`Error sampling image data for element ${el.id}:`, e);
+          }
         }
       });
 

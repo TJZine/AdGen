@@ -32,6 +32,14 @@ function createPrismaClient() {
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
+  // Run SQLite WAL mode and synchronous NORMAL on the connection
+  void client.$executeRawUnsafe('PRAGMA journal_mode = WAL;').catch((error) => {
+    console.error('Failed to set journal_mode WAL:', error);
+  });
+  void client.$executeRawUnsafe('PRAGMA synchronous = NORMAL;').catch((error) => {
+    console.error('Failed to set synchronous NORMAL:', error);
+  });
+
   return client;
 }
 

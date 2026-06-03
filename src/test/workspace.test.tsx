@@ -96,6 +96,9 @@ const mockAssets: Asset[] = [];
 
 describe('EditorWorkspace Split-Screen UI', () => {
   beforeEach(() => {
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/');
+    }
     // Reset Zustand store state before each test
     useEditorStore.setState({
       project: JSON.parse(JSON.stringify(mockProject)),

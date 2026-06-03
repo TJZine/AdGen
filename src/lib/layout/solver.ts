@@ -25,22 +25,28 @@ export function solveLayout(
   const elements: LayoutElement[] = [];
 
   const resolveElement = (el: LayoutElement): LayoutElement => {
+    const clampedEl = {
+      ...el,
+      width: typeof el.width === 'number' && Number.isFinite(el.width) ? Math.max(10, el.width) : 10,
+      height: typeof el.height === 'number' && Number.isFinite(el.height) ? Math.max(10, el.height) : 10,
+    };
+
     const existing = activeProject.layout?.elements?.find((x) => x.id === el.id);
     if (existing && existing.locked) {
       return {
-        ...el,
-        x: existing.x,
-        y: existing.y,
-        width: existing.width,
-        height: existing.height,
+        ...clampedEl,
+        x: typeof existing.x === 'number' && Number.isFinite(existing.x) ? existing.x : clampedEl.x,
+        y: typeof existing.y === 'number' && Number.isFinite(existing.y) ? existing.y : clampedEl.y,
+        width: typeof existing.width === 'number' && Number.isFinite(existing.width) ? Math.max(10, existing.width) : clampedEl.width,
+        height: typeof existing.height === 'number' && Number.isFinite(existing.height) ? Math.max(10, existing.height) : clampedEl.height,
         locked: true,
         style: {
-          ...el.style,
+          ...clampedEl.style,
           ...existing.style,
         },
       };
     }
-    return el;
+    return clampedEl;
   };
 
   const originalPush = elements.push.bind(elements);
@@ -110,7 +116,7 @@ export function solveLayout(
   }
 
   // Determine total bounds width (multiple pages for social carousel)
-  const numSlides = family === 'social_carousel' ? calculateSocialCarouselSlides(activeProject) : 1;
+  const numSlides = getNumSlides(activeProject);
 
   // Evaluate score and constraints
   const { score, warnings } = evaluateLayout(
@@ -122,7 +128,7 @@ export function solveLayout(
   );
 
   return {
-    elements,
+    elements: [...elements],
     score,
     warnings,
   };
@@ -157,18 +163,31 @@ export function autoSuggestLayout(project: Project): string {
 }
 
 /**
- * Calculates total slides for social_carousel.
+ * Calculates the total slides for social_carousel or returns 1 for other layouts.
+ * Used to define the overall canvas viewport and sizing layout.
  */
-function calculateSocialCarouselSlides(project: Project): number {
-  const visibleSections = project.content.sections.filter(
+export function getNumSlides(project: Project): number {
+  if (project.layout?.layoutFamily !== 'social_carousel') {
+    return 1;
+  }
+  const elements = project.layout?.elements || [];
+  let maxSlidesFromElements = 1;
+  if (elements.length > 0) {
+    const maxX = Math.max(...elements.map((el) => el.x + el.width));
+    maxSlidesFromElements = Math.max(1, Math.ceil(maxX / project.canvas.widthPx));
+  }
+  
+  const visibleSections = (project.content?.sections || []).filter(
     (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
   );
   let contentSlidesCount = 0;
   visibleSections.forEach((section) => {
-    const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
+    const visibleItems = (section.items || []).filter((item) => item.visibility !== 'hidden');
     contentSlidesCount += Math.ceil(visibleItems.length / 4);
   });
-  return 1 + contentSlidesCount + 1; // Headline slide + content slides + Closing slide
+  const maxSlidesFromContent = 1 + contentSlidesCount + 1;
+
+  return Math.max(maxSlidesFromElements, maxSlidesFromContent);
 }
 
 /**
@@ -211,8 +230,8 @@ function renderItemCard(
   });
 
   const pad = Math.max(6, Math.floor(Math.min(cardWidth, cardHeight) * 0.05));
-  const innerW = cardWidth - 2 * pad;
-  const innerH = cardHeight - 2 * pad;
+  const innerW = Math.max(10, cardWidth - 2 * pad);
+  const innerH = Math.max(10, cardHeight - 2 * pad);
 
   const hasImage = !!item.imageAssetId;
   const isHorizontal = cardWidth > 1.5 * cardHeight;

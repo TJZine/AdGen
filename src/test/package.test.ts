@@ -190,13 +190,14 @@ describe('Export Package API Endpoint', () => {
   });
 
   it('returns 200 with ZIP headers on success', async () => {
-    vi.mocked(prisma.project.findUnique).mockResolvedValueOnce({
+    vi.mocked(prisma.project.findUnique).mockResolvedValue({
       id: 'uuid-123',
       name: 'Test Handgun Project',
       type: 'inventory_board',
       contentJson: JSON.stringify(mockProject),
       createdAt: new Date(),
       updatedAt: new Date(),
+      ownerId: 'dev_user',
     } as unknown as PrismaProject);
     vi.mocked(renderLayoutImages).mockResolvedValue({
       full: Buffer.from('mock-png'),

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renderLayoutPdf } from '@/lib/export/renderService';
+import { authorizeProjectAccess, authenticateRequest } from '@/lib/auth/server';
+import { exportRateLimiter } from '@/lib/utils/rateLimiter';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,6 +14,22 @@ export async function GET(request: NextRequest) {
       { error: 'Missing required parameter: id' },
       { status: 400 }
     );
+  }
+
+  // 1. Rate Limiting Check
+  const user = authenticateRequest(request);
+  const rateLimitKey = user ? user.id : (request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'anonymous');
+  if (!exportRateLimiter.consume(rateLimitKey)) {
+    return NextResponse.json(
+      { error: 'Too Many Requests' },
+      { status: 429 }
+    );
+  }
+
+  // 2. Authorization Check
+  const authResult = await authorizeProjectAccess(id, request);
+  if (!authResult.authorized) {
+    return authResult.response;
   }
 
   try {

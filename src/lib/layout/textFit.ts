@@ -84,17 +84,23 @@ export function fitText(
   baseFontSize: number,
   lineHeightRatio: number = 1.2
 ): { fontSize: number; isTruncated: boolean; lines: string[] } {
-  let fontSize = baseFontSize;
+  // Clamp constraints to prevent division by zero, infinite loops, or negative dimensions
+  const safeMaxWidth = typeof maxWidth === 'number' && Number.isFinite(maxWidth) ? Math.max(10, maxWidth) : 10;
+  const safeMaxHeight = typeof maxHeight === 'number' && Number.isFinite(maxHeight) ? Math.max(10, maxHeight) : 10;
+  const safeBaseFontSize = typeof baseFontSize === 'number' && Number.isFinite(baseFontSize) ? Math.max(8, baseFontSize) : 14;
+  const safeLineHeightRatio = typeof lineHeightRatio === 'number' && Number.isFinite(lineHeightRatio) && lineHeightRatio > 0 ? lineHeightRatio : 1.2;
+
+  let fontSize = safeBaseFontSize;
   const minFontSize = 10;
   
   let lines: string[] = [];
 
   while (fontSize >= minFontSize) {
-    lines = wrapText(text, maxWidth, fontSize);
-    const totalHeight = lines.length * fontSize * lineHeightRatio;
-    const allLinesFitWidth = lines.every(line => estimateStringWidth(line, fontSize) <= maxWidth);
+    lines = wrapText(text, safeMaxWidth, fontSize);
+    const totalHeight = lines.length * fontSize * safeLineHeightRatio;
+    const allLinesFitWidth = lines.every(line => estimateStringWidth(line, fontSize) <= safeMaxWidth);
     
-    if (totalHeight <= maxHeight && allLinesFitWidth) {
+    if (totalHeight <= safeMaxHeight && allLinesFitWidth) {
       return { fontSize, isTruncated: false, lines };
     }
     
@@ -102,9 +108,9 @@ export function fitText(
   }
 
   fontSize = minFontSize;
-  lines = wrapText(text, maxWidth, fontSize);
-  const lineHeight = fontSize * lineHeightRatio;
-  const maxLinesAllowed = Math.max(1, Math.floor(maxHeight / lineHeight));
+  lines = wrapText(text, safeMaxWidth, fontSize);
+  const lineHeight = fontSize * safeLineHeightRatio;
+  const maxLinesAllowed = Math.max(1, Math.floor(safeMaxHeight / lineHeight));
   let isTruncated = false;
 
   if (lines.length > maxLinesAllowed) {
@@ -115,7 +121,7 @@ export function fitText(
     let lastLine = lines[lastLineIndex];
     const ellipsis = '...';
     let testLine = lastLine + ellipsis;
-    while (lastLine.length > 0 && estimateStringWidth(testLine, fontSize) > maxWidth) {
+    while (lastLine.length > 0 && estimateStringWidth(testLine, fontSize) > safeMaxWidth) {
       lastLine = lastLine.slice(0, -1);
       testLine = lastLine + ellipsis;
     }
@@ -124,12 +130,12 @@ export function fitText(
 
   // Double check horizontal overflow for all lines (including single lines or earlier lines)
   for (let i = 0; i < lines.length; i++) {
-    if (estimateStringWidth(lines[i], fontSize) > maxWidth) {
+    if (estimateStringWidth(lines[i], fontSize) > safeMaxWidth) {
       isTruncated = true;
       let line = lines[i];
       const ellipsis = '...';
       let testLine = line + ellipsis;
-      while (line.length > 0 && estimateStringWidth(testLine, fontSize) > maxWidth) {
+      while (line.length > 0 && estimateStringWidth(testLine, fontSize) > safeMaxWidth) {
         line = line.slice(0, -1);
         testLine = line + ellipsis;
       }

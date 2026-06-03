@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { prisma } from '@/lib/db';
 
 export type AuthenticatedRole = 'admin' | 'user';
 
@@ -110,4 +111,41 @@ export { SESSION_COOKIE_NAME };
 
 export function unauthorizedResponse(message = 'Unauthorized') {
   return NextResponse.json({ error: message }, { status: 401 });
+}
+
+export async function authorizeProjectAccess(
+  projectId: string,
+  request: NextRequest
+): Promise<{ authorized: true; project: { id: string; ownerId: string | null } } | { authorized: false; response: NextResponse }> {
+  const user = authenticateRequest(request);
+  if (!user) {
+    return { authorized: false, response: unauthorizedResponse() };
+  }
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { id: true, ownerId: true },
+  });
+
+  if (!project) {
+    return {
+      authorized: false,
+      response: NextResponse.json(
+        { error: `Project with ID ${projectId} not found` },
+        { status: 404 }
+      ),
+    };
+  }
+
+  if (user.role !== 'admin' && project.ownerId !== user.id) {
+    return {
+      authorized: false,
+      response: NextResponse.json(
+        { error: 'Forbidden: You do not own this project' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { authorized: true, project };
 }

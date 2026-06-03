@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GET } from '@/app/api/export/render/route';
 import { NextRequest } from 'next/server';
 import { renderLayoutPng } from '@/lib/export/renderService';
+import { prisma } from '@/lib/db';
+
+vi.mock('@/lib/db', () => ({
+  prisma: {
+    project: {
+      findUnique: vi.fn(),
+    },
+  },
+}));
 
 vi.mock('@/lib/export/renderService', () => ({
   renderLayoutPng: vi.fn(),
@@ -30,6 +39,10 @@ describe('Export Render API Route', () => {
 
   it('returns 200 with PNG buffer on success', async () => {
     const fakeBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]); // PNG signature
+    vi.mocked(prisma.project.findUnique).mockResolvedValueOnce({
+      id: 'uuid-123',
+      ownerId: 'dev_user',
+    } as unknown as import('@prisma/client').Project);
     vi.mocked(renderLayoutPng).mockResolvedValueOnce(fakeBuffer);
 
     const req = new NextRequest('http://localhost:3000/api/export/render?id=uuid-123&mode=full');
@@ -41,6 +54,10 @@ describe('Export Render API Route', () => {
   });
 
   it('returns 500 if rendering service fails', async () => {
+    vi.mocked(prisma.project.findUnique).mockResolvedValueOnce({
+      id: 'uuid-123',
+      ownerId: 'dev_user',
+    } as unknown as import('@prisma/client').Project);
     vi.mocked(renderLayoutPng).mockRejectedValueOnce(new Error('Playwright timeout'));
 
     const req = new NextRequest('http://localhost:3000/api/export/render?id=uuid-123&mode=full');
@@ -52,7 +69,7 @@ describe('Export Render API Route', () => {
   });
 
   it('returns 404 if project is not found', async () => {
-    vi.mocked(renderLayoutPng).mockRejectedValueOnce(new Error('Project with ID uuid-123 not found'));
+    vi.mocked(prisma.project.findUnique).mockResolvedValueOnce(null);
 
     const req = new NextRequest('http://localhost:3000/api/export/render?id=uuid-123&mode=full');
     const res = await GET(req);

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
-import { Project, Asset, Section, Item, LayoutVariant } from '../schemas/project';
+import { Project, Asset, Section, Item, LayoutVariant, LayoutElement } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
 
 const MAX_HISTORY = 50;
@@ -45,8 +45,12 @@ export interface EditorState {
   applyVariantAsPrimary: (variantId: string) => void;
 }
 
+let lastHistoryPushTime = 0;
+let lastHistoryPath = '';
+const HISTORY_DEBOUNCE_MS = 1000;
+
 const cloneProject = <T>(p: T): T => {
-  return JSON.parse(JSON.stringify(p)) as T;
+  return structuredClone(p);
 };
 
 const setNestedField = (obj: any, path: string, value: any) => {
@@ -278,7 +282,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...activeProject.layout,
           layoutFamily: activeVariant.layoutFamily,
           density: activeVariant.density,
-          elements: cloneProject(activeVariant.elements as any),
+          elements: cloneProject(activeVariant.elements as LayoutElement[]),
           score: activeVariant.score,
           warnings: activeVariant.warnings,
         };
@@ -287,6 +291,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
       }
     }
+
+    lastHistoryPath = '';
+    lastHistoryPushTime = 0;
 
     set({
       project: activeProject,
@@ -321,12 +328,25 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const isContentChange = !path.startsWith('layout') && !path.startsWith('polishedBackground');
     const updated = resolveAndUpdateState(nextProject, get, isContentChange);
-    set({
-      ...updated,
-      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
-      redoStack: [],
-      hasUnsavedChanges: true,
-    });
+    
+    const now = Date.now();
+    const shouldPush = path !== lastHistoryPath || (now - lastHistoryPushTime) > HISTORY_DEBOUNCE_MS;
+
+    if (shouldPush) {
+      lastHistoryPushTime = now;
+      lastHistoryPath = path;
+      set({
+        ...updated,
+        undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+        redoStack: [],
+        hasUnsavedChanges: true,
+      });
+    } else {
+      set({
+        ...updated,
+        hasUnsavedChanges: true,
+      });
+    }
   },
 
   updateSection: (sectionId, updates) => {
@@ -344,12 +364,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (section) {
       Object.assign(section, updates);
       const updated = resolveAndUpdateState(nextProject, get, true);
-      set({
-        ...updated,
-        undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
-        redoStack: [],
-        hasUnsavedChanges: true,
-      });
+
+      const now = Date.now();
+      const path = `section.${sectionId}`;
+      const shouldPush = path !== lastHistoryPath || (now - lastHistoryPushTime) > HISTORY_DEBOUNCE_MS;
+
+      if (shouldPush) {
+        lastHistoryPushTime = now;
+        lastHistoryPath = path;
+        set({
+          ...updated,
+          undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+          redoStack: [],
+          hasUnsavedChanges: true,
+        });
+      } else {
+        set({
+          ...updated,
+          hasUnsavedChanges: true,
+        });
+      }
     }
   },
 
@@ -379,12 +413,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     if (itemFound) {
       const updated = resolveAndUpdateState(nextProject, get, true);
-      set({
-        ...updated,
-        undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
-        redoStack: [],
-        hasUnsavedChanges: true,
-      });
+
+      const now = Date.now();
+      const path = `item.${itemId}`;
+      const shouldPush = path !== lastHistoryPath || (now - lastHistoryPushTime) > HISTORY_DEBOUNCE_MS;
+
+      if (shouldPush) {
+        lastHistoryPushTime = now;
+        lastHistoryPath = path;
+        set({
+          ...updated,
+          undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+          redoStack: [],
+          hasUnsavedChanges: true,
+        });
+      } else {
+        set({
+          ...updated,
+          hasUnsavedChanges: true,
+        });
+      }
     }
   },
 
@@ -837,6 +885,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         layoutVariants: cloneProject(state.layoutVariants),
         activeVariantId: state.activeVariantId,
       };
+
+      lastHistoryPath = '';
+      lastHistoryPushTime = 0;
+
       return {
         project: activeProject,
         layoutVariants,
@@ -886,6 +938,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         layoutVariants: cloneProject(state.layoutVariants),
         activeVariantId: state.activeVariantId,
       };
+
+      lastHistoryPath = '';
+      lastHistoryPushTime = 0;
+
       return {
         project: activeProject,
         layoutVariants,
