@@ -31,6 +31,38 @@ function getNumSlides(project: Project): number {
 
 let sharedBrowser: Browser | null = null;
 let sharedBrowserPromise: Promise<Browser> | null = null;
+let isClosingSharedBrowser = false;
+
+async function closeSharedBrowser(): Promise<void> {
+  if (isClosingSharedBrowser) return;
+  isClosingSharedBrowser = true;
+
+  try {
+    if (sharedBrowser?.isConnected()) {
+      await sharedBrowser.close();
+    }
+  } finally {
+    sharedBrowser = null;
+    sharedBrowserPromise = null;
+    isClosingSharedBrowser = false;
+  }
+}
+
+function registerSharedBrowserCleanup(): void {
+  const shutdown = (signal: NodeJS.Signals) => {
+    void closeSharedBrowser().finally(() => {
+      process.kill(process.pid, signal);
+    });
+  };
+
+  process.once('SIGINT', shutdown);
+  process.once('SIGTERM', shutdown);
+  process.once('beforeExit', () => {
+    void closeSharedBrowser();
+  });
+}
+
+registerSharedBrowserCleanup();
 
 class ConcurrencyLimiter {
   private limit: number;

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Project, Asset } from '@/lib/schemas/project';
+import { hexToRgb, getRelativeLuminance, isDarkColor } from '@/lib/utils/color';
 
 interface ContrastGuardProps {
   project: Project;
@@ -15,7 +16,6 @@ interface WarningState {
     isCompliant: boolean;
   };
 }
-import { hexToRgb, getRelativeLuminance, isDarkColor } from '@/lib/utils/color';
 
 export const ContrastGuard: React.FC<ContrastGuardProps> = ({ project, assets }) => {
   const [warnings, setWarnings] = useState<WarningState>({});

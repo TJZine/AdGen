@@ -4,7 +4,7 @@ import { fileTypeFromBuffer } from 'file-type';
 import { POST } from '@/app/api/upload/route';
 import { GET } from '@/app/api/export/pdf/route';
 import { renderLayoutPdf } from '@/lib/export/renderService';
-import { hexToRgb, getRelativeLuminance } from '@/lib/utils/color';
+import { hexToRgb, getRelativeLuminance, isDarkColor } from '@/lib/utils/color';
 
 // Mock file-type
 vi.mock('file-type', () => ({
@@ -53,9 +53,6 @@ describe('Composite & Background Import tests', () => {
     it('rejects upload if no file is provided', async () => {
       const req = new NextRequest('http://localhost:3000/api/upload', {
         method: 'POST',
-        headers: {
-          'x-user-id': 'user_admin',
-        },
         body: new FormData(), // empty
       });
       const res = await POST(req);
@@ -72,11 +69,9 @@ describe('Composite & Background Import tests', () => {
 
       const req = new NextRequest('http://localhost:3000/api/upload', {
         method: 'POST',
-        headers: {
-          'x-user-id': 'user_admin',
-        },
         body: formData,
       });
+      req.formData = async () => formData;
 
       const res = await POST(req);
       expect(res.status).toBe(400);
@@ -92,11 +87,9 @@ describe('Composite & Background Import tests', () => {
 
       const req = new NextRequest('http://localhost:3000/api/upload', {
         method: 'POST',
-        headers: {
-          'x-user-id': 'user_admin',
-        },
         body: formData,
       });
+      req.formData = async () => formData;
 
       const res = await POST(req);
       expect(res.status).toBe(400);
@@ -112,9 +105,6 @@ describe('Composite & Background Import tests', () => {
 
       const req = new NextRequest('http://localhost:3000/api/upload', {
         method: 'POST',
-        headers: {
-          'x-user-id': 'user_admin',
-        },
         body: formData,
       });
       req.formData = async () => formData;
@@ -136,7 +126,6 @@ describe('Composite & Background Import tests', () => {
         method: 'POST',
         headers: {
           'content-length': (11 * 1024 * 1024).toString(),
-          'x-user-id': 'user_admin',
         },
         body: formData,
       });
@@ -154,9 +143,6 @@ describe('Composite & Background Import tests', () => {
 
       const req = new NextRequest('http://localhost:3000/api/upload', {
         method: 'POST',
-        headers: {
-          'x-user-id': 'user_admin',
-        },
         body: formData,
       });
       req.formData = async () => formData;
@@ -175,6 +161,12 @@ describe('Composite & Background Import tests', () => {
       expect(hexToRgb('#ff0000')).toEqual({ r: 255, g: 0, b: 0 });
       expect(hexToRgb('#FFF')).toEqual({ r: 255, g: 255, b: 255 });
       expect(hexToRgb('')).toEqual({ r: 0, g: 0, b: 0 });
+    });
+
+    it('falls back safely for malformed hex colors', () => {
+      expect(hexToRgb('#GGG')).toEqual({ r: 0, g: 0, b: 0 });
+      expect(hexToRgb('#ZZZZZZ')).toEqual({ r: 0, g: 0, b: 0 });
+      expect(isDarkColor('#ZZZZZZ')).toBe(true);
     });
 
     it('calculates correct relative luminance', () => {

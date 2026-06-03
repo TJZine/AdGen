@@ -54,9 +54,6 @@ export const RightInspector: React.FC = () => {
     try {
       const res = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          'x-user-id': 'user_admin',
-        },
         body: formData,
       });
       if (!res.ok) {

@@ -15,13 +15,9 @@ export const BackgroundRenderer: React.FC<BackgroundRendererProps> = ({ project,
   const { canvas, brand, layout } = project;
   const elements = layout.elements || [];
 
-  const [isRenderCanvas, setIsRenderCanvas] = React.useState(false);
-  React.useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.pathname.includes('/render-canvas')) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsRenderCanvas(true);
-    }
-  }, []);
+  const isRenderCanvas =
+    typeof window !== 'undefined' &&
+    window.location.pathname.includes('/render-canvas');
 
   const polishedBg = project.polishedBackground;
   const hasPolishedBg = !!polishedBg?.assetId;

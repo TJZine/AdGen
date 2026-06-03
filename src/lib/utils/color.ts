@@ -4,18 +4,20 @@
 export function hexToRgb(hex: string): { r: number; g: number; b: number } {
   if (!hex) return { r: 0, g: 0, b: 0 };
   const cleanHex = hex.replace('#', '');
+  const safeValue = (value: number) => Number.isNaN(value) ? 0 : value;
+
   if (cleanHex.length === 3) {
     return {
-      r: parseInt(cleanHex[0] + cleanHex[0], 16),
-      g: parseInt(cleanHex[1] + cleanHex[1], 16),
-      b: parseInt(cleanHex[2] + cleanHex[2], 16),
+      r: safeValue(parseInt(cleanHex[0] + cleanHex[0], 16)),
+      g: safeValue(parseInt(cleanHex[1] + cleanHex[1], 16)),
+      b: safeValue(parseInt(cleanHex[2] + cleanHex[2], 16)),
     };
   }
   if (cleanHex.length === 6 || cleanHex.length === 8) {
     return {
-      r: parseInt(cleanHex.substring(0, 2), 16),
-      g: parseInt(cleanHex.substring(2, 4), 16),
-      b: parseInt(cleanHex.substring(4, 6), 16),
+      r: safeValue(parseInt(cleanHex.substring(0, 2), 16)),
+      g: safeValue(parseInt(cleanHex.substring(2, 4), 16)),
+      b: safeValue(parseInt(cleanHex.substring(4, 6), 16)),
     };
   }
   return { r: 0, g: 0, b: 0 };
@@ -37,20 +39,7 @@ export function getRelativeLuminance(r: number, g: number, b: number): number {
  */
 export function isDarkColor(hex: string): boolean {
   if (!hex) return true;
-  const cleanHex = hex.replace('#', '');
-  if (cleanHex.length === 3) {
-    const r = parseInt(cleanHex[0] + cleanHex[0], 16);
-    const g = parseInt(cleanHex[1] + cleanHex[1], 16);
-    const b = parseInt(cleanHex[2] + cleanHex[2], 16);
-    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-    return yiq < 128;
-  }
-  if (cleanHex.length === 6 || cleanHex.length === 8) {
-    const r = parseInt(cleanHex.substring(0, 2), 16);
-    const g = parseInt(cleanHex.substring(2, 4), 16);
-    const b = parseInt(cleanHex.substring(4, 6), 16);
-    const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-    return yiq < 128;
-  }
-  return true;
+  const { r, g, b } = hexToRgb(hex);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq < 128;
 }

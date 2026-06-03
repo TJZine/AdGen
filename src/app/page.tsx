@@ -1,19 +1,35 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { prisma } from '@/lib/db';
 import { Project } from '@/lib/schemas/project';
+import { authenticateSessionCookie, SESSION_COOKIE_NAME } from '@/lib/auth/server';
 import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 export default async function DashboardPage() {
+  const cookieStore = await cookies();
+  const currentUser = authenticateSessionCookie(cookieStore.get(SESSION_COOKIE_NAME)?.value);
+
   const projects = await prisma.project.findMany({
+    where: !currentUser
+      ? { id: '__unauthorized__' }
+      : currentUser.role !== 'admin'
+      ? { ownerId: currentUser.id }
+      : undefined,
     orderBy: { updatedAt: 'desc' },
   });
 
   // Server Action to handle project creation
   async function createProject() {
     'use server';
+    const actionCookieStore = await cookies();
+    const actionUser = authenticateSessionCookie(actionCookieStore.get(SESSION_COOKIE_NAME)?.value);
+    if (!actionUser) {
+      throw new Error('Unauthorized');
+    }
+
     const id = `project_${crypto.randomUUID()}`;
     
     const newProjectData: Project = {
@@ -123,6 +139,7 @@ export default async function DashboardPage() {
           name: newProjectData.name,
           type: newProjectData.type,
           contentJson: JSON.stringify(newProjectData),
+          ownerId: actionUser.id,
         },
       });
       created = true;

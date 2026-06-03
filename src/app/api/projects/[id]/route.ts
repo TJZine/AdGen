@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ProjectSchema } from '@/lib/schemas/project';
 import { Prisma } from '@prisma/client';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/auth/server';
 
 export async function PUT(
   request: NextRequest,
@@ -16,8 +17,10 @@ export async function PUT(
       );
     }
 
-    const userId = request.headers.get('x-user-id');
-    const userRole = request.headers.get('x-user-role');
+    const user = authenticateRequest(request);
+    if (!user) {
+      return unauthorizedResponse();
+    }
 
     const body = await request.json();
 
@@ -31,21 +34,28 @@ export async function PUT(
 
     const validatedProject = parseResult.data;
 
-    // Build the query clause. 
-    // If not admin, the user can only update projects they own or that have no owner.
-    const whereClause: Prisma.ProjectWhereUniqueInput & {
-      OR?: Array<{ ownerId: string | null }>;
-    } = { id };
-    if (userRole !== 'admin') {
-      whereClause.OR = [
-        { ownerId: userId },
-        { ownerId: null }
-      ];
+    const existingProject = await prisma.project.findUnique({
+      where: { id },
+      select: { id: true, ownerId: true },
+    });
+
+    if (!existingProject) {
+      return NextResponse.json(
+        { error: `Project with ID ${id} not found` },
+        { status: 404 }
+      );
+    }
+
+    if (user.role !== 'admin' && existingProject.ownerId !== user.id) {
+      return NextResponse.json(
+        { error: 'Forbidden: You do not own this project' },
+        { status: 403 }
+      );
     }
 
     try {
       await prisma.project.update({
-        where: whereClause,
+        where: { id },
         data: {
           name: validatedProject.name,
           type: validatedProject.type,

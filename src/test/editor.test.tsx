@@ -384,19 +384,19 @@ describe('Zustand Editor Store', () => {
     
     store.updateProjectField('name', 'Trigger Solve');
     let state = useEditorStore.getState();
-    const firstElement = state.project.layout.elements[0];
-    expect(firstElement).toBeDefined();
-    expect(firstElement.locked).toBe(false);
+    const targetElement = state.project.layout.elements.find((el) => el.id === 'item-card-item_1');
+    expect(targetElement).toBeDefined();
+    expect(targetElement!.locked).toBe(false);
 
-    const originalX = firstElement.x;
-    const originalY = firstElement.y;
+    const originalX = targetElement!.x;
+    const originalY = targetElement!.y;
     const targetX = originalX + 10;
     const targetY = originalY + 15;
 
-    store.updateLayoutElements([{ id: firstElement.id, x: targetX, y: targetY }]);
+    store.updateLayoutElements([{ id: targetElement!.id, x: targetX, y: targetY }]);
 
     state = useEditorStore.getState();
-    const updatedElement = state.project.layout.elements.find(el => el.id === firstElement.id);
+    const updatedElement = state.project.layout.elements.find(el => el.id === targetElement!.id);
     expect(updatedElement).toBeDefined();
     expect(updatedElement!.x).toBe(targetX);
     expect(updatedElement!.y).toBe(targetY);

@@ -93,7 +93,7 @@ export const LeftSidebar: React.FC = () => {
   const handleAddQRCode = () => {
     const existingElements = project.layout.elements || [];
     const newElement = {
-      id: `qr-code-${Date.now()}`,
+      id: `qr-code-${crypto.randomUUID()}`,
       type: 'qr_code' as const,
       contentRef: 'brand.website',
       x: canvas.safeMarginPx,
@@ -109,7 +109,7 @@ export const LeftSidebar: React.FC = () => {
   const handleAddAIZone = () => {
     const existingElements = project.layout.elements || [];
     const newElement = {
-      id: `ai-zone-${Date.now()}`,
+      id: `ai-zone-${crypto.randomUUID()}`,
       type: 'ai_instruction_zone' as const,
       contentRef: 'keep this area clean for product shadows',
       x: canvas.safeMarginPx,
@@ -220,9 +220,6 @@ export const LeftSidebar: React.FC = () => {
     try {
       const res = await fetch('/api/upload?bulk=true', {
         method: 'POST',
-        headers: {
-          'x-user-id': 'user_admin',
-        },
         body: formData,
       });
 
@@ -280,7 +277,7 @@ export const LeftSidebar: React.FC = () => {
     }
   };
 
-  const recommendedLayout = autoSuggestLayout(project);
+  const recommendedLayout = React.useMemo(() => autoSuggestLayout(project), [project]);
 
   // Score color formatting
   const getScoreColorClass = (score: number) => {
@@ -442,8 +439,6 @@ export const LeftSidebar: React.FC = () => {
               ))}
             </div>
           </div>
-
-          <hr className="border-zinc-200" />
 
           <hr className="border-zinc-200" />
 

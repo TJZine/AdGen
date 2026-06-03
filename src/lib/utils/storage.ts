@@ -1,57 +1,87 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+
+interface StorageConfig {
+  bucket: string;
+  endpoint?: string;
+  region: string;
+  forcePathStyle: boolean;
+}
+
+function getStorageConfig(): StorageConfig | null {
+  const bucket = process.env.AWS_S3_BUCKET;
+  const accessKey = process.env.AWS_ACCESS_KEY_ID;
+  const secretKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const endpoint = process.env.AWS_S3_ENDPOINT;
+  const publicBaseUrl = process.env.AWS_S3_PUBLIC_BASE_URL;
+  const region = process.env.AWS_REGION;
+
+  if (!bucket && !accessKey && !secretKey) return null;
+  if (!bucket || !accessKey || !secretKey) {
+    throw new Error('Remote storage is partially configured. AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY are required together.');
+  }
+
+  if (!endpoint && !publicBaseUrl && !region) {
+    throw new Error('AWS_REGION is required when AWS_S3_ENDPOINT or AWS_S3_PUBLIC_BASE_URL is not configured.');
+  }
+
+  return {
+    bucket,
+    endpoint,
+    region: region || 'auto',
+    forcePathStyle: process.env.AWS_S3_FORCE_PATH_STYLE === 'true',
+  };
+}
+
+function createS3Client(config: StorageConfig): S3Client {
+  return new S3Client({
+    region: config.region,
+    endpoint: config.endpoint,
+    forcePathStyle: config.forcePathStyle,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    },
+  });
+}
+
+function remoteFileUrl(config: StorageConfig, key: string): string {
+  if (process.env.AWS_S3_PUBLIC_BASE_URL) {
+    return `${process.env.AWS_S3_PUBLIC_BASE_URL.replace(/\/$/, '')}/${key}`;
+  }
+
+  if (config.endpoint) {
+    const endpoint = new URL(config.endpoint);
+    if (config.forcePathStyle) return `${endpoint.origin}/${config.bucket}/${key}`;
+    return `${endpoint.protocol}//${config.bucket}.${endpoint.host}/${key}`;
+  }
+
+  return `https://${config.bucket}.s3.${config.region}.amazonaws.com/${key}`;
+}
 
 /**
  * Uploads a file buffer to storage.
- * If S3/R2 credentials are set in the environment, it simulates/attempts a bucket upload.
- * Otherwise, it falls back to a local filesystem write under public/uploads.
+ * If S3/R2 credentials are fully configured, uploads through a signed SDK request.
+ * Otherwise, writes locally under public/uploads.
  */
 export async function uploadToStorage(
   buffer: Buffer,
   fileName: string,
   mimeType: string
-): Promise<{ filePath: string; isRemote: boolean }> {
-  const bucket = process.env.AWS_S3_BUCKET;
-  const accessKey = process.env.AWS_ACCESS_KEY_ID;
-  const secretKey = process.env.AWS_SECRET_ACCESS_KEY;
-  const endpoint = process.env.AWS_S3_ENDPOINT; // e.g. custom R2 endpoint
+): Promise<{ filePath: string; isRemote: boolean; storageKey?: string }> {
+  const remoteConfig = getStorageConfig();
 
-  const isS3Configured = !!(bucket && accessKey && secretKey);
+  if (remoteConfig) {
+    const client = createS3Client(remoteConfig);
+    await client.send(new PutObjectCommand({
+      Bucket: remoteConfig.bucket,
+      Key: fileName,
+      Body: buffer,
+      ContentType: mimeType,
+    }));
 
-  if (isS3Configured) {
-    try {
-      console.log(`Uploading ${fileName} (${mimeType}) to S3 bucket ${bucket}...`);
-      
-      // If a custom endpoint is specified, we can construct the host, otherwise standard AWS S3
-      const host = endpoint 
-        ? `${bucket}.${endpoint.replace(/^https?:\/\//, '')}`
-        : `${bucket}.s3.amazonaws.com`;
-      const url = `https://${host}/${fileName}`;
-
-      // We attempt a fetch PUT request to the S3 endpoint. In a real environment, 
-      // without SDK, this would require SigV4 headers, but we handle it gracefully.
-      // We will perform a fetch PUT. If it fails, or if it's just a test, we handle the error.
-      // To ensure local testing works seamlessly even with partial credentials, we can do:
-      const response = await fetch(url, {
-        method: 'PUT',
-        body: new Uint8Array(buffer),
-        headers: {
-          'Content-Type': mimeType,
-          'Content-Length': buffer.length.toString(),
-        },
-      }).catch((e) => {
-        console.warn('Network error during S3 upload, falling back to local storage:', e);
-        return null;
-      });
-
-      if (response && response.ok) {
-        return { filePath: url, isRemote: true };
-      }
-      
-      console.warn('S3 upload response not OK, falling back to local storage');
-    } catch (error) {
-      console.error('Error during remote storage upload, falling back to local storage:', error);
-    }
+    return { filePath: remoteFileUrl(remoteConfig, fileName), isRemote: true, storageKey: fileName };
   }
 
   // Fallback to local storage
@@ -67,4 +97,26 @@ export async function uploadToStorage(
     filePath: `/uploads/${fileName}`,
     isRemote: false,
   };
+}
+
+export async function deleteFromStorage(filePath: string, isRemote: boolean, storageKey?: string): Promise<void> {
+  if (isRemote) {
+    const remoteConfig = getStorageConfig();
+    if (!remoteConfig) {
+      throw new Error(`Cannot delete remote file without remote storage configuration: ${filePath}`);
+    }
+
+    const key = storageKey || decodeURIComponent(new URL(filePath).pathname.split('/').filter(Boolean).pop() || '');
+    if (!key) throw new Error(`Cannot determine remote storage key for ${filePath}`);
+
+    const client = createS3Client(remoteConfig);
+    await client.send(new DeleteObjectCommand({
+      Bucket: remoteConfig.bucket,
+      Key: key,
+    }));
+    return;
+  }
+
+  const localPath = path.join(process.cwd(), 'public', filePath);
+  await fs.unlink(localPath);
 }

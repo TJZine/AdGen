@@ -3,6 +3,8 @@ import { create } from 'zustand';
 import { Project, Asset, Section, Item, LayoutVariant } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
 
+const MAX_HISTORY = 50;
+
 export interface EditorState {
   project: Project;
   assets: Asset[];
@@ -319,8 +321,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     const isContentChange = !path.startsWith('layout') && !path.startsWith('polishedBackground');
     const updated = resolveAndUpdateState(nextProject, get, isContentChange);
-
-    const MAX_HISTORY = 50;
     set({
       ...updated,
       undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
@@ -344,8 +344,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (section) {
       Object.assign(section, updates);
       const updated = resolveAndUpdateState(nextProject, get, true);
-
-      const MAX_HISTORY = 50;
       set({
         ...updated,
         undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
@@ -381,8 +379,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     if (itemFound) {
       const updated = resolveAndUpdateState(nextProject, get, true);
-
-      const MAX_HISTORY = 50;
       set({
         ...updated,
         undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
@@ -421,8 +417,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     nextProject.content.sections = orderedSections;
 
     const updated = resolveAndUpdateState(nextProject, get, true);
-
-    const MAX_HISTORY = 50;
     set({
       ...updated,
       undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
@@ -458,8 +452,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       section.items = orderedItems;
 
       const updated = resolveAndUpdateState(nextProject, get, true);
-
-      const MAX_HISTORY = 50;
       set({
         ...updated,
         undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
@@ -513,8 +505,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     if (hasChanges) {
       const updated = resolveAndUpdateState(nextProject, get, false);
-
-      const MAX_HISTORY = 50;
       set({
         ...updated,
         undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
@@ -582,8 +572,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextProject.layout = cloneProject(primaryLayout);
       nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
     }
-
-    const MAX_HISTORY = 50;
     set({
       project: nextProject,
       layoutVariants: nextLayoutVariants,
@@ -639,8 +627,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextProject.layout = cloneProject(primaryLayout);
       nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
     }
-
-    const MAX_HISTORY = 50;
     set({
       project: nextProject,
       layoutVariants: nextLayoutVariants,
@@ -716,8 +702,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextProject.layout = cloneProject(primaryLayout);
       nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
     }
-
-    const MAX_HISTORY = 50;
     set({
       project: nextProject,
       layoutVariants: nextLayoutVariants,
@@ -761,8 +745,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       nextProject.layout = cloneProject(primaryLayout);
       nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
     }
-
-    const MAX_HISTORY = 50;
     set({
       project: nextProject,
       activeVariantId: variantId,
@@ -808,8 +790,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     nextProject.activeVariantId = null;
     nextProject.layout = cloneProject(newPrimaryLayout);
     nextProject.polishedBackground = cloneProject(newPrimaryPolishedBackground);
-
-    const MAX_HISTORY = 50;
     set({
       project: nextProject,
       activeVariantId: null,
@@ -857,8 +837,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         layoutVariants: cloneProject(state.layoutVariants),
         activeVariantId: state.activeVariantId,
       };
-
-      const MAX_HISTORY = 50;
       return {
         project: activeProject,
         layoutVariants,
@@ -908,8 +886,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         layoutVariants: cloneProject(state.layoutVariants),
         activeVariantId: state.activeVariantId,
       };
-
-      const MAX_HISTORY = 50;
       return {
         project: activeProject,
         layoutVariants,

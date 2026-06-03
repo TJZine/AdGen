@@ -445,7 +445,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
               justifyContent: 'center',
               cursor: 'move',
               outline: isSelected ? '1.5px solid #3b82f6' : 'none',
-              pointerEvents: isSelected ? 'auto' : 'none',
+              pointerEvents: 'auto',
               ...containerShadowStyle,
             }}
             onMouseDown={(e) => handleElementMouseDown(e, el)}

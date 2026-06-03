@@ -68,7 +68,7 @@ export function compilePrompt(project: Project): string {
           const y = Math.max(0, Math.min(project.canvas.heightPx, el.y));
           const w = Math.max(0, Math.min(project.canvas.widthPx - x, el.width));
           const h = Math.max(0, Math.min(project.canvas.heightPx - y, el.height));
-          const cleanText = el.contentRef
+          const cleanText = (el.contentRef ?? '')
             .replace(/[\r\n]+/g, ' ')
             .replace(/[#*>_`\[\]()]/g, '')
             .trim();

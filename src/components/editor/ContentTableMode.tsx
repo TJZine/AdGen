@@ -50,6 +50,8 @@ const areItemsEqual = (prev: Item, next: Item): boolean => {
     prev.salePrice === next.salePrice &&
     prev.badge === next.badge &&
     prev.imageAssetId === next.imageAssetId &&
+    (prev.focalPoint?.x ?? null) === (next.focalPoint?.x ?? null) &&
+    (prev.focalPoint?.y ?? null) === (next.focalPoint?.y ?? null) &&
     prev.priority === next.priority &&
     prev.visibility === next.visibility &&
     prev.layoutHints?.cardSize === next.layoutHints?.cardSize &&

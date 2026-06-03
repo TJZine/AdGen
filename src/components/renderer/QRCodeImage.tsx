@@ -10,14 +10,24 @@ interface QRCodeImageProps {
 }
 
 export const QRCodeImage: React.FC<QRCodeImageProps> = ({ text, width, height }) => {
-  const [dataUrl, setDataUrl] = useState<string>('');
+  const [qrCode, setQrCode] = useState<{ text: string; width: number; dataUrl: string } | null>(null);
 
   useEffect(() => {
+    let active = true;
     if (!text) return;
+
     QRCode.toDataURL(text, { width, margin: 1 })
-      .then((url) => setDataUrl(url))
+      .then((url) => {
+        if (active) setQrCode({ text, width, dataUrl: url });
+      })
       .catch((err) => console.error('Failed to generate QR code', err));
+
+    return () => {
+      active = false;
+    };
   }, [text, width]);
+
+  const dataUrl = qrCode?.text === text && qrCode.width === width ? qrCode.dataUrl : '';
 
   if (!dataUrl) {
     return (

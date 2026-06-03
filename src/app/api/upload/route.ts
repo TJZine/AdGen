@@ -2,31 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { fileTypeFromBuffer } from 'file-type';
 import sharp from 'sharp';
-import { promises as fs } from 'fs';
-import path from 'path';
 import crypto from 'crypto';
-import { uploadToStorage } from '@/lib/utils/storage';
+import { deleteFromStorage, uploadToStorage } from '@/lib/utils/storage';
 import { uploadRateLimiter } from '@/lib/utils/rateLimiter';
+import { authenticateRequest, unauthorizedResponse } from '@/lib/auth/server';
 
 export async function POST(request: NextRequest) {
-  // 1. Authenticate request using x-user-id header
-  const userId = request.headers.get('x-user-id');
-  if (!userId) {
-    return NextResponse.json(
-      { error: 'Unauthorized: Missing x-user-id header' },
-      { status: 401 }
-    );
+  const user = authenticateRequest(request);
+  if (!user) {
+    return unauthorizedResponse();
   }
 
-  // 2. Enforce token-bucket based rate limiting
-  if (!uploadRateLimiter.consume(userId)) {
+  if (!uploadRateLimiter.consume(user.id)) {
     return NextResponse.json(
       { error: 'Too Many Requests' },
       { status: 429 }
     );
   }
 
-  const succeededAssets: { id: string; filePath: string; isRemote: boolean }[] = [];
+  const succeededAssets: { id: string; filePath: string; isRemote: boolean; storageKey?: string }[] = [];
   try {
     const isBulk = request.nextUrl.searchParams.get('bulk') === 'true';
 
@@ -98,7 +92,8 @@ export async function POST(request: NextRequest) {
       succeededAssets.push({ 
         id: uuid, 
         filePath: uploadResult.filePath, 
-        isRemote: uploadResult.isRemote 
+        isRemote: uploadResult.isRemote,
+        storageKey: uploadResult.storageKey,
       });
 
       // Insert database Asset entry using Prisma (canonical fields only)
@@ -120,8 +115,19 @@ export async function POST(request: NextRequest) {
       return asset;
     };
 
-    // Process all files concurrently
-    const assets = await Promise.all(files.map(processFile));
+    const settledAssets = await Promise.allSettled(files.map(processFile));
+    const failedUpload = settledAssets.find((result) => result.status === 'rejected');
+
+    if (failedUpload) {
+      throw failedUpload.reason;
+    }
+
+    const assets = settledAssets.map((result) => {
+      if (result.status !== 'fulfilled') {
+        throw new Error('Unexpected upload result state');
+      }
+      return result.value;
+    });
 
     // For backwards-compatibility:
     // If not bulk mode and exactly one file was uploaded, return the single asset.
@@ -136,14 +142,12 @@ export async function POST(request: NextRequest) {
 
     // Rollback any successfully created files/database entries to prevent orphans
     for (const asset of succeededAssets) {
-      if (!asset.isRemote) {
-        try {
-          const localPath = path.join(process.cwd(), 'public', asset.filePath);
-          await fs.unlink(localPath);
-        } catch (err) {
-          console.error(`Failed to cleanup file ${asset.filePath}:`, err);
-        }
+      try {
+        await deleteFromStorage(asset.filePath, asset.isRemote, asset.storageKey);
+      } catch (err) {
+        console.error(`Failed to cleanup file ${asset.filePath}:`, err);
       }
+
       try {
         await prisma.asset.delete({ where: { id: asset.id } }).catch(() => {});
       } catch (err) {
@@ -158,4 +162,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-

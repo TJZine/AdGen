@@ -13,12 +13,28 @@ class TokenBucketRateLimiter {
     this.refillRateMs = refillRateSeconds * 1000;
   }
 
+  private pruneIdleBuckets(now: number): void {
+    const idleExpiryMs = this.capacity * this.refillRateMs;
+
+    for (const [clientId, bucket] of this.buckets) {
+      const elapsed = now - bucket.lastRefilled;
+      const refilledTokens = Math.floor(elapsed / this.refillRateMs);
+      const wouldBeFull = bucket.tokens + refilledTokens >= this.capacity;
+
+      if (wouldBeFull && elapsed > idleExpiryMs) {
+        this.buckets.delete(clientId);
+      }
+    }
+  }
+
   /**
    * Attempts to consume one token for the given identifier.
    * Returns true if a token was consumed (allowed), false if rate-limited.
    */
   public consume(clientId: string): boolean {
     const now = Date.now();
+    this.pruneIdleBuckets(now);
+
     let bucket = this.buckets.get(clientId);
 
     if (!bucket) {
