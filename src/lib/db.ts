@@ -33,7 +33,7 @@ function createPrismaClient() {
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
-  // Run SQLite WAL mode and synchronous NORMAL on the connection
+  // Background initialization as a fallback
   void client.$executeRawUnsafe('PRAGMA journal_mode = WAL;').catch((error) => {
     console.error('Failed to set journal_mode WAL:', error);
   });
@@ -47,3 +47,41 @@ function createPrismaClient() {
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+
+let pragmasInitialized = false;
+
+export async function ensurePragmas(client: PrismaClient = prisma) {
+  if (pragmasInitialized) return;
+  try {
+    await client.$executeRawUnsafe('PRAGMA journal_mode = WAL;');
+    await client.$executeRawUnsafe('PRAGMA synchronous = NORMAL;');
+    pragmasInitialized = true;
+  } catch (error) {
+    console.error('Failed to run pragmas on DB connect:', error);
+  }
+}
+
+export async function withDbRetry<T>(fn: () => Promise<T>, maxRetries = 5, delayMs = 100): Promise<T> {
+  await ensurePragmas(prisma);
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt++;
+      const dbError = error as { message?: string; code?: string };
+      const isLocked = 
+        dbError?.message?.includes('database is locked') ||
+        dbError?.message?.includes('SQLITE_BUSY') ||
+        dbError?.code === 'P2002' || // unique constraint or similar database collision
+        dbError?.code === 'P2034'; // transaction collision
+      if (isLocked && attempt < maxRetries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * Math.pow(2, attempt)));
+        continue;
+      }
+      throw error;
+    }
+
+  }
+}
+

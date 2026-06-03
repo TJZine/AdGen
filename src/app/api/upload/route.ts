@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma, withDbRetry } from '@/lib/db';
 import { fileTypeFromBuffer } from 'file-type';
 import sharp from 'sharp';
 import crypto from 'crypto';
@@ -97,22 +97,25 @@ export async function POST(request: NextRequest) {
       });
 
       // Insert database Asset entry using Prisma (canonical fields only)
-      const asset = await prisma.asset.create({
-        data: {
-          id: uuid,
-          name: file.name,
-          type: 'image',
-          filePath: uploadResult.filePath,
-          mimeType: detected.mime,
-          sizeBytes: processedBuffer.length,
-          width: metadata.width ?? null,
-          height: metadata.height ?? null,
-          focalPointX: 0.5,
-          focalPointY: 0.5,
-        },
-      });
+      const asset = await withDbRetry(() =>
+        prisma.asset.create({
+          data: {
+            id: uuid,
+            name: file.name,
+            type: 'image',
+            filePath: uploadResult.filePath,
+            mimeType: detected.mime,
+            sizeBytes: processedBuffer.length,
+            width: metadata.width ?? null,
+            height: metadata.height ?? null,
+            focalPointX: 0.5,
+            focalPointY: 0.5,
+          },
+        })
+      );
 
       return asset;
+
     };
 
     const settledAssets = await Promise.allSettled(files.map(processFile));
@@ -149,8 +152,9 @@ export async function POST(request: NextRequest) {
       }
 
       try {
-        await prisma.asset.delete({ where: { id: asset.id } }).catch(() => {});
+        await withDbRetry(() => prisma.asset.delete({ where: { id: asset.id } })).catch(() => {});
       } catch (err) {
+
         console.error(`Failed to cleanup database entry for asset ${asset.id}:`, err);
       }
     }

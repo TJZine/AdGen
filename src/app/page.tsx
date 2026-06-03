@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
-import { prisma } from '@/lib/db';
+import { prisma, withDbRetry } from '@/lib/db';
 import { Project } from '@/lib/schemas/project';
 import { authenticateSessionCookie, SESSION_COOKIE_NAME } from '@/lib/auth/server';
 import crypto from 'crypto';
@@ -132,16 +132,19 @@ export default async function DashboardPage() {
     };
 
     try {
-      await prisma.project.create({
-        data: {
-          id,
-          name: newProjectData.name,
-          type: newProjectData.type,
-          contentJson: JSON.stringify(newProjectData),
-          ownerId: actionUser.id,
-        },
-      });
+      await withDbRetry(() =>
+        prisma.project.create({
+          data: {
+            id,
+            name: newProjectData.name,
+            type: newProjectData.type,
+            contentJson: JSON.stringify(newProjectData),
+            ownerId: actionUser.id,
+          },
+        })
+      );
     } catch (error) {
+
       console.error('Failed to create new project:', error);
       throw error;
     }

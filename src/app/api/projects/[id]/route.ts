@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { prisma, withDbRetry } from '@/lib/db';
 import { ProjectSchema } from '@/lib/schemas/project';
 import { authenticateRequest, unauthorizedResponse } from '@/lib/auth/server';
 
@@ -58,14 +58,17 @@ export async function PUT(
       );
     }
 
-    const updateResult = await prisma.project.updateMany({
-      where: user.role === 'admin' ? { id } : { id, ownerId: user.id },
-      data: {
-        name: validatedProject.name,
-        type: validatedProject.type,
-        contentJson: JSON.stringify(validatedProject),
-      },
-    });
+    const updateResult = await withDbRetry(() =>
+      prisma.project.updateMany({
+        where: user.role === 'admin' ? { id } : { id, ownerId: user.id },
+        data: {
+          name: validatedProject.name,
+          type: validatedProject.type,
+          contentJson: JSON.stringify(validatedProject),
+        },
+      })
+    );
+
 
     if (updateResult.count === 0) {
       const exists = await prisma.project.findUnique({

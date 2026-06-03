@@ -11,7 +11,9 @@ vi.mock('@/lib/db', () => ({
       updateMany: vi.fn(),
     },
   },
+  withDbRetry: vi.fn((fn) => fn()),
 }));
+
 
 function projectFixture(id: string): Project {
   const now = new Date().toISOString();

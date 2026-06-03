@@ -33,12 +33,15 @@ vi.mock('@/lib/db', () => ({
   prisma: {
     asset: {
       create: vi.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'uuid-mock', ...data })),
+      delete: vi.fn().mockResolvedValue({ id: 'uuid-mock' }),
     },
     project: {
       findUnique: vi.fn(),
     },
   },
+  withDbRetry: vi.fn((fn) => fn()),
 }));
+
 
 // Mock Playwright / renderService
 vi.mock('@/lib/export/renderService', () => ({
