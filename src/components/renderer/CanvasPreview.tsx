@@ -9,6 +9,7 @@ import { getNumSlides } from '@/lib/layout/solver';
 export interface CanvasPreviewProps extends RenderOptions {
   project: Project;
   assets?: Asset[];
+  isRenderMode?: boolean;
 }
 
 export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
@@ -17,6 +18,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
   zoom = 1,
   showBackground = true,
   showOverlay = true,
+  isRenderMode = false,
 }) => {
   const { canvas } = project;
   const numSlides = getNumSlides(project);
@@ -52,7 +54,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
         }}
       >
         {showBackground && <BackgroundRenderer project={project} assets={assets} />}
-        {showOverlay && <OverlayRenderer project={project} />}
+        {showOverlay && <OverlayRenderer project={project} isRenderMode={isRenderMode} />}
       </div>
     </div>
   );

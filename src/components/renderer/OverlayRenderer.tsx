@@ -11,6 +11,7 @@ import { getNumSlides } from '@/lib/layout/solver';
 
 export interface OverlayRendererProps {
   project: Project;
+  isRenderMode?: boolean;
 }
 
 interface DragState {
@@ -25,7 +26,7 @@ interface DragState {
   startElementH: number;
 }
 
-export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => {
+export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project, isRenderMode = false }) => {
   const { canvas, brand, layout } = project;
   const elements = layout.elements || [];
 
@@ -42,13 +43,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
     tempCoordsRef.current = tempCoords;
   }, [tempCoords]);
 
-  const [isRenderCanvas, setIsRenderCanvas] = useState(false);
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.pathname.includes('/render-canvas')) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsRenderCanvas(true);
-    }
-  }, []);
+  // Removed isRenderCanvas state/effect to prevent SSR hydration mismatches
 
   const handleElementMouseDown = (e: React.MouseEvent, el: LayoutElement) => {
     e.stopPropagation();
@@ -307,7 +302,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
         }
 
         if (el.type === 'ai_instruction_zone') {
-          if (isRenderCanvas) return null;
+          if (isRenderMode) return null;
 
           return (
             <div

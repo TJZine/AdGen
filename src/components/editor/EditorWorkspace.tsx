@@ -122,6 +122,31 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     window.history.replaceState(null, '', newUrl);
   }, [zoom, activeVariantId, comparisonVariantId]);
 
+  // Synchronize browser Back/Forward (popstate) actions back into Zustand store
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      
+      const urlZoom = params.get('zoom');
+      if (urlZoom) {
+        const parsedZoom = parseFloat(urlZoom);
+        if (Number.isFinite(parsedZoom) && parsedZoom > 0) {
+          setZoom(parsedZoom);
+        }
+      }
+      
+      const urlVariant = params.get('variant');
+      selectActiveVariant(urlVariant === 'primary' || !urlVariant ? null : urlVariant);
+      
+      const urlCompare = params.get('compare');
+      selectComparisonVariant(urlCompare === 'primary' || !urlCompare ? null : urlCompare);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setZoom, selectActiveVariant, selectComparisonVariant]);
+
   // Prevent loss of unsaved changes when closing or reloading the browser tab
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -133,6 +158,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
+
 
   const numSlides = getNumSlides(project);
 

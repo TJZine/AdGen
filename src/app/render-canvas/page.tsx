@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { ProjectSchema, mapPrismaAssetToZod, Project } from '@/lib/schemas/project';
-import { solveLayout } from '@/lib/layout/solver';
+import { solveLayout, getNumSlides } from '@/lib/layout/solver';
 import { CanvasPreview } from '@/components/renderer/CanvasPreview';
+
 
 export const dynamic = 'force-dynamic';
 
@@ -117,10 +118,7 @@ export default async function RenderCanvasPage({
         />
       ))}
       {(() => {
-        const numSlides = solvedProject.layout?.layoutFamily === 'social_carousel'
-          ? solvedProject.content.sections.length
-          : 1;
-
+        const numSlides = getNumSlides(solvedProject);
         const totalWidth = solvedProject.canvas.widthPx * numSlides;
 
         return (
@@ -139,10 +137,12 @@ export default async function RenderCanvasPage({
               zoom={1}
               showBackground={showBackground}
               showOverlay={showOverlay}
+              isRenderMode={true}
             />
           </div>
         );
       })()}
+
     </>
   );
 }
