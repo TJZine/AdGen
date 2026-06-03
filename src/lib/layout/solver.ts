@@ -126,8 +126,10 @@ export function solveLayout(
     cardsToEvaluate,
     textFitResults,
     activeProject.canvas.widthPx * numSlides,
-    activeProject.canvas.heightPx
+    activeProject.canvas.heightPx,
+    activeProject.canvas.widthPx
   );
+
 
   return {
     elements: [...elements],

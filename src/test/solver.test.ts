@@ -223,6 +223,39 @@ describe('HGP Layout Solver', () => {
     expect(evalResult.warnings[1]).toContain('out-el-2');
   });
 
+  it('should flag elements that cross slide boundaries in multi-page flyers', () => {
+    const mockElements = [
+      {
+        id: 'cross-el-1',
+        type: 'item_card' as const,
+        contentRef: 'item-1',
+        x: 850,
+        y: 50,
+        width: 100, // Starts at 850, ends at 950. If slideWidth is 900, it crosses the boundary!
+        height: 50,
+        locked: false,
+        style: {},
+      },
+      {
+        id: 'non-cross-el-2',
+        type: 'item_card' as const,
+        contentRef: 'item-2',
+        x: 950,
+        y: 50,
+        width: 100, // Starts at 950, ends at 1050. Fits completely on slide 2 (900 to 1800).
+        height: 50,
+        locked: false,
+        style: {},
+      }
+    ];
+
+    const evalResult = evaluateLayout(mockElements, [], [], 1800, 1000, 900);
+    expect(evalResult.score).toBe(85); // 100 - 15 (15 points deduction for crossing boundary)
+    expect(evalResult.warnings.length).toBe(1);
+    expect(evalResult.warnings[0]).toContain('cross-el-1');
+  });
+
+
   it('should flag tiny text at exactly 10px if truncated', () => {
     const textFitResults = [
       { text: 'This text is truncated and tiny', fontSize: 10, isTruncated: true },

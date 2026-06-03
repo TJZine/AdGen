@@ -13,7 +13,8 @@ export function evaluateLayout(
   cards: Array<{ sectionTitle: string; width: number; height: number }>,
   textFitResults: Array<{ text: string; fontSize: number; isTruncated: boolean }>,
   canvasWidth: number,
-  canvasHeight: number
+  canvasHeight: number,
+  slideWidth?: number
 ): LayoutEvaluationResult {
   const warnings: string[] = [];
   let score = 100;
@@ -53,6 +54,7 @@ export function evaluateLayout(
 
   // 3. Out-of-Bounds Canvas Checks
   let outOfBoundsDeductions = 0;
+  const effectiveSlideWidth = slideWidth || canvasWidth;
   for (const el of elements) {
     if (el.x < 0 || el.y < 0 || el.x + el.width > canvasWidth || el.y + el.height > canvasHeight) {
       warnings.push(
@@ -61,9 +63,19 @@ export function evaluateLayout(
         )}, w=${Math.round(el.width)}, h=${Math.round(el.height)} px on canvas ${canvasWidth}x${canvasHeight}.`
       );
       outOfBoundsDeductions += 10;
+    } else if (el.width > 0 && effectiveSlideWidth < canvasWidth) {
+      const startSlide = Math.floor(el.x / effectiveSlideWidth);
+      const endSlide = Math.floor((el.x + el.width - 0.01) / effectiveSlideWidth);
+      if (startSlide !== endSlide) {
+        warnings.push(
+          `Element "${el.id}" (${el.type}) crosses slide boundaries: starts on slide ${startSlide + 1} and ends on slide ${endSlide + 1}.`
+        );
+        outOfBoundsDeductions += 15;
+      }
     }
   }
   score -= Math.min(30, outOfBoundsDeductions);
+
 
   // 4. Overlapping Top-level Elements Checks (Layout Collisions)
   let overlapDeductions = 0;

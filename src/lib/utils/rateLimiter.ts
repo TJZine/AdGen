@@ -7,6 +7,7 @@ class TokenBucketRateLimiter {
   private buckets = new Map<string, { tokens: number; lastRefilled: number }>();
   private readonly capacity: number;
   private readonly refillRateMs: number; // Time to refill 1 token in ms
+  private lastPruned = Date.now();
 
   constructor(capacity = 10, refillRateSeconds = 6) {
     this.capacity = capacity;
@@ -33,9 +34,14 @@ class TokenBucketRateLimiter {
    */
   public consume(clientId: string): boolean {
     const now = Date.now();
-    this.pruneIdleBuckets(now);
+    // Throttle pruning to at most once per 60 seconds to avoid CPU bottleneck under load
+    if (now - this.lastPruned > 60000) {
+      this.pruneIdleBuckets(now);
+      this.lastPruned = now;
+    }
 
     let bucket = this.buckets.get(clientId);
+
 
     if (!bucket) {
       // First request, initialize bucket with capacity - 1
