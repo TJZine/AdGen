@@ -4,6 +4,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 model Project {
@@ -11,6 +12,7 @@ model Project {
   name        String
   type        String
   contentJson String
+  ownerId     String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -29,9 +31,7 @@ model Asset {
   name        String
   type        String   @default("image")
   filePath    String
-  mime        String
   mimeType    String
-  size        Int
   sizeBytes   Int
   width       Int?
   height      Int?
