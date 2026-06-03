@@ -130,7 +130,7 @@ export const ItemSchema = z.object({
   priority: ItemPrioritySchema.default('normal'),
   visibility: VisibilityModeSchema.default('visible'),
   layoutHints: LayoutHintsSchema.default({}),
-  metadata: z.record(z.any()).default({ tags: [] }),
+  metadata: z.record(z.string(), z.any()).default({ tags: [] }),
 });
 
 export type Item = z.infer<typeof ItemSchema>;
@@ -437,18 +437,17 @@ c:/Software/AdGen/
 │   │       └── projectStore.ts
 │   └── styles/
 │       └── globals.css
-├── tests/                     # Test Suites
-│   ├── unit/                  # Fast, isolated domain checks (Vitest)
+│   ├── test/                  # Test Suites (Vitest unit & snapshots)
 │   │   ├── csv.test.ts
 │   │   ├── format.test.ts
 │   │   ├── layout.test.ts
 │   │   ├── textFit.test.ts
-│   │   └── validation.test.ts
-│   ├── snapshots/             # Stable rendering outputs
-│   │   ├── layouts.test.ts
-│   │   └── __snapshots__/
-│   └── e2e/                   # Playwright visual verification
-│       └── editor.spec.ts
+│   │   ├── validation.test.ts
+│   │   └── snapshots/
+│   │       ├── layouts.test.ts
+│   │       └── __snapshots__/
+├── e2e/                       # Playwright visual verification E2E tests
+│   └── sample.spec.ts
 ├── vitest.config.ts           # Unit testing runner config
 ├── playwright.config.ts       # Integration & visual screenshot runner config
 ├── tailwind.config.js
@@ -538,6 +537,6 @@ graph LR
 
 To ensure schema stability and verify layout coordinates, we recommend the following:
 
-- **Schema Assertions**: Write unit tests in `tests/unit/validation.test.ts` verifying that Zod correctly rejects malformed payloads (e.g. invalid color hexes or negative dimensions) and successfully parses partial historical objects by applying default overrides.
-- **Deterministic Mock Snapshots**: Maintain golden JSON mocks under `tests/snapshots/` representing basic and dense projects. Ensure the layout engine solver computes the same output coordinate lists for identical inputs.
+- **Schema Assertions**: Write unit tests in `src/test/validation.test.ts` verifying that Zod correctly rejects malformed payloads (e.g. invalid color hexes or negative dimensions) and successfully parses partial historical objects by applying default overrides.
+- **Deterministic Mock Snapshots**: Maintain golden JSON mocks under `src/test/snapshots/` representing basic and dense projects. Ensure the layout engine solver computes the same output coordinate lists for identical inputs.
 - **Manifest Completeness Check**: Test that the `ExportPackageManifestSchema` matches the generated ZIP output contents exactly, ensuring that files references inside `files` pointing to prompt and PNG assets are resolved properly.

@@ -102,7 +102,7 @@ $$\text{Score} = 100 - \sum \text{Penalties}$$
 
 The Template-to-Flyer Generator splits layout styling into structured, deterministic stages to prevent the common AI image generation trap of hallucinated text.
 
-```
+```text
                   +----------------------------------+
                   |    Zustand Store / Project JSON  |
                   +----------------------------------+
@@ -225,7 +225,7 @@ To deliver a commercial-grade application, the layout engine and renderer must h
 
 We recommend organizing the layout files under these specific, decoupled modules:
 
-```
+```text
 c:/Software/AdGen/
 ├── lib/
 │   ├── layout/

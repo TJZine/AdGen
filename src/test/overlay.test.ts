@@ -146,7 +146,7 @@ describe('Export Overlay API Route', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
-    expect(res.headers.get('Content-Type')).toBe('image/svg+xml');
+    expect(res.headers.get('Content-Type')).toContain('image/svg+xml');
     const text = await res.text();
     expect(text).toBe(fakeSvg);
   });

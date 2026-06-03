@@ -108,7 +108,7 @@ export interface Item {
   layoutHints: LayoutHints;
   metadata: {
     tags: string[];
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 ```

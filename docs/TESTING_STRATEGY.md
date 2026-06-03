@@ -22,7 +22,7 @@ Unit tests target modules under `lib/` and must run in isolation without requiri
   - Parses standard strings containing headings: `section`, `title`, `subtitle`, `price`, `sale_price`, `badge`, `image`, `priority`, `tags`.
   - Gracefully handles empty fields, malformed lines, and quoted commas.
 
-- **Price Formatter (`lib/utils/format.ts`)**:
+- **Price Formatter (`src/lib/utils/formatters.ts` - `formatCurrency`)**:
   - Formats numbers to standard currency (e.g. `530` -> `$530`).
   - Supports decimal rendering (e.g. `49.99` -> `$49.99`).
   - Supports text values / overrides.

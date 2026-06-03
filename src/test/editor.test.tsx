@@ -356,6 +356,7 @@ describe('Zustand Editor Store', () => {
     store.updateProjectField('name', 'Savable Project');
 
     // Mock global fetch
+    const originalFetch = global.fetch;
     const mockFetch = vi.fn().mockImplementation(() =>
       Promise.resolve({
         ok: true,
@@ -364,12 +365,16 @@ describe('Zustand Editor Store', () => {
     );
     global.fetch = mockFetch;
 
-    await store.saveProject();
+    try {
+      await store.saveProject();
 
-    const state = useEditorStore.getState();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(state.isSaving).toBe(false);
-    expect(state.hasUnsavedChanges).toBe(false);
+      const state = useEditorStore.getState();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(state.isSaving).toBe(false);
+      expect(state.hasUnsavedChanges).toBe(false);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 
   it('should update layout elements using updateLayoutElements, mark as locked on change, run solver, and maintain history', () => {
