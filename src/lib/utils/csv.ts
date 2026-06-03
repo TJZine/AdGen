@@ -2,6 +2,15 @@ import { randomUUID } from 'crypto';
 import { Section, Item, SectionPriority, SectionLayoutHint, ItemPriority, VisibilityMode } from '../schemas/project';
 import { formatCurrency } from './formatters';
 
+export function sanitizeSpreadsheetFormula(value: string): string {
+  if (!value) return '';
+  const trimmed = value.trim();
+  if (trimmed.startsWith('=') || trimmed.startsWith('+') || trimmed.startsWith('-') || trimmed.startsWith('@')) {
+    return `'${value}`;
+  }
+  return value;
+}
+
 function generateId(): string {
   try {
     return randomUUID();
@@ -164,7 +173,7 @@ export function parseSpreadsheet(rawText: string): { sections: Section[]; items:
     }
 
     // Get or create section
-    const sectionTitle = record.section || 'Uncategorized';
+    const sectionTitle = sanitizeSpreadsheetFormula(record.section || 'Uncategorized');
     let section = sectionMap.get(sectionTitle);
     if (!section) {
       const sectionId = generateId();
@@ -222,13 +231,13 @@ export function parseSpreadsheet(rawText: string): { sections: Section[]; items:
     const item: Item = {
       id: generateId(),
       sectionId: section.id,
-      title: record.title,
-      subtitle: record.subtitle || '',
-      description: record.description || '',
+      title: sanitizeSpreadsheetFormula(record.title),
+      subtitle: sanitizeSpreadsheetFormula(record.subtitle || ''),
+      description: sanitizeSpreadsheetFormula(record.description || ''),
       price,
       priceDisplay: formatCurrency(price),
       salePrice,
-      badge: record.badge || null,
+      badge: record.badge ? sanitizeSpreadsheetFormula(record.badge) : null,
       imageAssetId: imageVal, // map filePath directly to imageAssetId
       priority,
       visibility: 'visible' as VisibilityMode,
@@ -238,7 +247,7 @@ export function parseSpreadsheet(rawText: string): { sections: Section[]; items:
         preferredAspectRatio: '4:3',
       },
       metadata: {
-        tags,
+        tags: tags.map(sanitizeSpreadsheetFormula),
       },
     };
 
