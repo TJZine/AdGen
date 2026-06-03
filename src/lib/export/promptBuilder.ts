@@ -63,7 +63,17 @@ export function compilePrompt(project: Project): string {
   if (instructionZones.length > 0) {
     instructionSection = `\n## Spatial AI Design Zone Instructions\n` +
       instructionZones
-        .map((el) => `Box coordinates [x: ${el.x}, y: ${el.y}, w: ${el.width}, h: ${el.height}]: ${el.contentRef}`)
+        .map((el) => {
+          const x = Math.max(0, Math.min(project.canvas.widthPx, el.x));
+          const y = Math.max(0, Math.min(project.canvas.heightPx, el.y));
+          const w = Math.max(0, Math.min(project.canvas.widthPx - x, el.width));
+          const h = Math.max(0, Math.min(project.canvas.heightPx - y, el.height));
+          const cleanText = el.contentRef
+            .replace(/[\r\n]+/g, ' ')
+            .replace(/[#*>_`\[\]()]/g, '')
+            .trim();
+          return `Box coordinates [x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}]: ${cleanText}`;
+        })
         .join('\n') + `\n`;
   }
 
