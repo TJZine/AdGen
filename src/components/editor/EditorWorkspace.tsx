@@ -94,12 +94,18 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
         
         const urlVariant = params.get('variant');
         if (urlVariant) {
-          selectActiveVariant(urlVariant === 'primary' ? null : urlVariant);
+          const variantExists = urlVariant === 'primary' || initialProject.layoutVariants.some((v) => v.id === urlVariant);
+          if (variantExists) {
+            selectActiveVariant(urlVariant === 'primary' ? null : urlVariant);
+          }
         }
         
         const urlCompare = params.get('compare');
         if (urlCompare) {
-          selectComparisonVariant(urlCompare === 'primary' ? null : urlCompare);
+          const compareExists = urlCompare === 'primary' || initialProject.layoutVariants.some((v) => v.id === urlCompare);
+          if (compareExists) {
+            selectComparisonVariant(urlCompare === 'primary' ? null : urlCompare);
+          }
         }
       }
     }
@@ -140,15 +146,21 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
       }
       
       const urlVariant = params.get('variant');
-      selectActiveVariant(urlVariant === 'primary' || !urlVariant ? null : urlVariant);
+      const variantExists = !urlVariant || urlVariant === 'primary' || layoutVariants.some((v) => v.id === urlVariant);
+      if (variantExists) {
+        selectActiveVariant(urlVariant === 'primary' || !urlVariant ? null : urlVariant);
+      }
       
       const urlCompare = params.get('compare');
-      selectComparisonVariant(urlCompare === 'primary' || !urlCompare ? null : urlCompare);
+      const compareExists = !urlCompare || urlCompare === 'primary' || layoutVariants.some((v) => v.id === urlCompare);
+      if (compareExists) {
+        selectComparisonVariant(urlCompare === 'primary' || !urlCompare ? null : urlCompare);
+      }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [setZoom, selectActiveVariant, selectComparisonVariant]);
+  }, [setZoom, selectActiveVariant, selectComparisonVariant, layoutVariants]);
 
   // Prevent loss of unsaved changes when closing or reloading the browser tab
   useEffect(() => {
