@@ -13,13 +13,22 @@ import { compilePrompt, getNegativePrompt } from './promptBuilder';
  * @returns Promise<Buffer> - The ZIP file as a binary Buffer
  */
 export async function createHandoffPackage(projectId: string): Promise<Buffer> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const archive = new (archiver as any).ZipArchive({ zlib: { level: 9 } });
   const stream = new PassThrough();
   const buffers: Buffer[] = [];
 
   stream.on('data', (chunk) => buffers.push(chunk as Buffer));
   archive.pipe(stream);
+
+  // Define finalizePromise early to catch all events/errors
+  const finalizePromise = new Promise<Buffer>((resolve, reject) => {
+    stream.on('end', () => {
+      resolve(Buffer.concat(buffers));
+    });
+    stream.on('error', (err) => reject(err));
+    archive.on('error', (err: Error) => reject(err));
+    archive.on('warning', (err: Error) => console.warn('Archiver warning:', err));
+  });
 
   // 1. Fetch project from SQLite
   const projectRecord = await prisma.project.findUnique({
@@ -84,17 +93,7 @@ This ZIP package contains everything you need to polish your layout using an AI 
   const { full, backgroundOnly } = await renderLayoutImages(project.id);
   archive.append(full, { name: 'renders/rough-layout.png' });
   archive.append(backgroundOnly, { name: 'renders/rough-layout-background-only.png' });
-
   // 6. Finalize the ZIP archive in memory
-  const finalizePromise = new Promise<Buffer>((resolve, reject) => {
-    stream.on('end', () => {
-      resolve(Buffer.concat(buffers));
-    });
-    stream.on('error', (err) => reject(err));
-    archive.on('error', (err: Error) => reject(err));
-    archive.on('warning', (err: Error) => console.warn('Archiver warning:', err));
-  });
-
   await archive.finalize();
   return finalizePromise;
 }

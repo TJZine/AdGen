@@ -3,7 +3,7 @@ import { prisma } from '../db';
 import { ProjectSchema, type Project, type LayoutElement, type Section } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
 import { fitText } from '../layout/textFit';
-import { getElementText } from '../../components/renderer/BackgroundRenderer';
+import { getElementText } from '../renderer/utils';
 
 function getNumSlides(project: Project): number {
   if (project.layout?.layoutFamily !== 'social_carousel') {
@@ -158,11 +158,12 @@ export async function renderLayoutPng(
         process.env.RENDER_BASE_URL ||
         process.env.NEXT_PUBLIC_APP_URL ||
         'http://localhost:3000';
-      const url = `${baseUrl}/render-canvas?id=${projectId}&mode=${mode}`;
+      const url = `${baseUrl}/render-canvas?id=${encodeURIComponent(projectId)}&mode=${mode}`;
 
       // 5. Navigate to rendering route and wait until network is idle
       await page.goto(url, {
         waitUntil: 'networkidle',
+        timeout: 30000,
       });
 
       // Wait for web fonts to load
@@ -251,8 +252,8 @@ export async function renderLayoutImages(
                         solveLayout(projectResult.data).elements.some((el: { type: string }) => el.type === 'qr_code');
 
       // 1. Render and capture full layout
-      const urlFull = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
-      await page.goto(urlFull, { waitUntil: 'networkidle' });
+      const urlFull = `${baseUrl}/render-canvas?id=${encodeURIComponent(projectId)}&mode=full`;
+      await page.goto(urlFull, { waitUntil: 'networkidle', timeout: 30000 });
       await page.evaluate(() => document.fonts.ready);
       await page.waitForSelector('[data-testid="canvas-preview-container"]', {
         state: 'visible',
@@ -266,8 +267,8 @@ export async function renderLayoutImages(
       });
 
       // 2. Render and capture background-only layout
-      const urlBg = `${baseUrl}/render-canvas?id=${projectId}&mode=background_only`;
-      await page.goto(urlBg, { waitUntil: 'networkidle' });
+      const urlBg = `${baseUrl}/render-canvas?id=${encodeURIComponent(projectId)}&mode=background_only`;
+      await page.goto(urlBg, { waitUntil: 'networkidle', timeout: 30000 });
       await page.evaluate(() => document.fonts.ready);
       await page.waitForSelector('[data-testid="canvas-preview-container"]', {
         state: 'visible',
@@ -349,11 +350,12 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
         process.env.RENDER_BASE_URL ||
         process.env.NEXT_PUBLIC_APP_URL ||
         'http://localhost:3000';
-      const url = `${baseUrl}/render-canvas?id=${projectId}&mode=overlay`;
+      const url = `${baseUrl}/render-canvas?id=${encodeURIComponent(projectId)}&mode=overlay`;
 
       // 5. Navigate to rendering route and wait until network is idle
       await page.goto(url, {
         waitUntil: 'networkidle',
+        timeout: 30000,
       });
 
       // Wait for web fonts to load
@@ -617,11 +619,12 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
         process.env.RENDER_BASE_URL ||
         process.env.NEXT_PUBLIC_APP_URL ||
         'http://localhost:3000';
-      const url = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
+      const url = `${baseUrl}/render-canvas?id=${encodeURIComponent(projectId)}&mode=full`;
 
       // 5. Navigate to rendering route and wait until network is idle
       await page.goto(url, {
         waitUntil: 'networkidle',
+        timeout: 30000,
       });
 
       // Wait for web fonts to load

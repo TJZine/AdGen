@@ -220,6 +220,9 @@ export const LeftSidebar: React.FC = () => {
     try {
       const res = await fetch('/api/upload?bulk=true', {
         method: 'POST',
+        headers: {
+          'x-user-id': 'user_admin',
+        },
         body: formData,
       });
 
@@ -265,9 +268,7 @@ export const LeftSidebar: React.FC = () => {
         updatedAt: typeof a.updatedAt === 'string' ? a.updatedAt : new Date(a.updatedAt).toISOString(),
       }));
 
-      useEditorStore.setState((state) => ({
-        assets: [...state.assets, ...formattedAssets],
-      }));
+      useEditorStore.getState().addAssets(formattedAssets);
 
       alert(`Successfully uploaded ${formattedAssets.length} image(s).`);
     } catch (err: unknown) {

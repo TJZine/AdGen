@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { EditorWorkspace } from '@/components/editor/EditorWorkspace';
-import { Project, Asset, mapPrismaAssetToZod } from '@/lib/schemas/project';
+import { Project, Asset, mapPrismaAssetToZod, ProjectSchema } from '@/lib/schemas/project';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -24,9 +24,15 @@ export default async function EditorPage({ params }: PageProps) {
 
   let project: Project;
   try {
-    project = JSON.parse(dbProject.contentJson) as Project;
+    const raw = JSON.parse(dbProject.contentJson);
+    const parseResult = ProjectSchema.safeParse(raw);
+    if (!parseResult.success) {
+      console.error(`Failed to validate project content schema for ID ${id}:`, parseResult.error.format());
+      notFound();
+    }
+    project = parseResult.data;
   } catch (error) {
-    console.error(`Failed to parse project contentJson for ID ${id}:`, error);
+    console.error(`Failed to parse/validate project contentJson for ID ${id}:`, error);
     notFound();
   }
 

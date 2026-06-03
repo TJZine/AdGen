@@ -4,41 +4,11 @@ import React from 'react';
 import { Project, LayoutElement, Asset } from '../../lib/schemas/project';
 import { fitText } from '../../lib/layout/textFit';
 import { QRCodeImage } from './QRCodeImage';
+import { getElementText } from '../../lib/renderer/utils';
 
 export interface BackgroundRendererProps {
   project: Project;
   assets?: Asset[];
-}
-
-export function getElementText(el: LayoutElement, project: Project): string {
-  const { content, brand } = project;
-  if (el.contentRef === 'content.headline') {
-    return content.headline;
-  }
-  if (el.contentRef === 'content.subheadline') {
-    return content.subheadline;
-  }
-  if (el.contentRef === 'brand.defaultFooter') {
-    return `${brand.defaultFooter} ${brand.defaultDisclaimer}`.trim();
-  }
-  if (el.type === 'section_header') {
-    const section = content.sections.find((s) => s.id === el.contentRef);
-    return section ? section.title : '';
-  }
-  if (el.contentRef.includes('.')) {
-    const [itemId, field] = el.contentRef.split('.');
-    for (const section of content.sections) {
-      const item = section.items.find((it) => it.id === itemId);
-      if (item) {
-        if (field === 'title') return item.title;
-        if (field === 'subtitle') return item.subtitle;
-        if (field === 'description') return item.description;
-        if (field === 'price') return item.priceDisplay || (item.price !== null ? `$${item.price}` : '');
-        if (field === 'badge') return item.badge || '';
-      }
-    }
-  }
-  return '';
 }
 
 export const BackgroundRenderer: React.FC<BackgroundRendererProps> = ({ project, assets }) => {
@@ -58,25 +28,7 @@ export const BackgroundRenderer: React.FC<BackgroundRendererProps> = ({ project,
   const polishedAsset = hasPolishedBg ? assets?.find((a) => a.id === polishedBg.assetId) : null;
 
   const numSlides = project.layout?.layoutFamily === 'social_carousel'
-    ? (() => {
-        const elementsList = project.layout.elements || [];
-        let maxSlidesFromElements = 1;
-        if (elementsList.length > 0) {
-          const maxX = Math.max(...elementsList.map(el => el.x + el.width));
-          maxSlidesFromElements = Math.max(1, Math.ceil(maxX / canvas.widthPx));
-        }
-        
-        const visibleSections = project.content.sections.filter(
-          (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
-        );
-        let contentSlidesCount = 0;
-        visibleSections.forEach((section) => {
-          const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
-          contentSlidesCount += Math.ceil(visibleItems.length / 4);
-        });
-        const maxSlidesFromContent = 1 + contentSlidesCount + 1;
-        return Math.max(maxSlidesFromElements, maxSlidesFromContent);
-      })()
+    ? project.content.sections.length
     : 1;
 
   const totalWidth = canvas.widthPx * numSlides;
@@ -92,25 +44,23 @@ export const BackgroundRenderer: React.FC<BackgroundRendererProps> = ({ project,
         overflow: 'hidden',
       }}
     >
-      {hasPolishedBg ? (
-        polishedAsset ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={polishedAsset.filePath}
-            alt="Polished Background"
-            data-testid="polished-background-image"
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: polishedBg.fitMode === 'stretch' ? 'fill' : (polishedBg.fitMode as 'cover' | 'contain'),
-              transform: `translate(${polishedBg.offsetX}px, ${polishedBg.offsetY}px) scale(${polishedBg.scale})`,
-              opacity: polishedBg.opacity,
-            }}
-          />
-        ) : null
+      {(hasPolishedBg && polishedAsset) ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img
+          src={polishedAsset.filePath}
+          alt="Polished Background"
+          data-testid="polished-background-image"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: polishedBg.fitMode === 'stretch' ? 'fill' : (polishedBg.fitMode as 'cover' | 'contain'),
+            transform: `translate(${polishedBg.offsetX}px, ${polishedBg.offsetY}px) scale(${polishedBg.scale})`,
+            opacity: polishedBg.opacity,
+          }}
+        />
       ) : (
         elements.map((el) => {
           const isTextElement = ['text', 'price', 'badge', 'footer', 'section_header'].includes(el.type);

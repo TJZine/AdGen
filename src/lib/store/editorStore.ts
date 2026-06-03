@@ -28,6 +28,8 @@ export interface EditorState {
   undo: () => void;
   redo: () => void;
   saveProject: () => Promise<void>;
+  addAsset: (asset: Asset) => void;
+  addAssets: (assets: Asset[]) => void;
 }
 
 const cloneProject = (p: Project): Project => {
@@ -403,5 +405,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ isSaving: false });
       throw error;
     }
+  },
+
+  addAsset: (asset) => {
+    set((state) => ({
+      assets: [...state.assets.filter((a) => a.id !== asset.id), asset],
+    }));
+  },
+
+  addAssets: (newAssets) => {
+    set((state) => {
+      const filtered = state.assets.filter(
+        (a) => !newAssets.some((na) => na.id === a.id)
+      );
+      return {
+        assets: [...filtered, ...newAssets],
+      };
+    });
   },
 }));

@@ -18,29 +18,16 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
 }) => {
   const { canvas } = project;
   const numSlides = project.layout?.layoutFamily === 'social_carousel'
-    ? (() => {
-        const elementsList = project.layout.elements || [];
-        let maxSlidesFromElements = 1;
-        if (elementsList.length > 0) {
-          const maxX = Math.max(...elementsList.map(el => el.x + el.width));
-          maxSlidesFromElements = Math.max(1, Math.ceil(maxX / canvas.widthPx));
-        }
-        
-        const visibleSections = project.content.sections.filter(
-          (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
-        );
-        let contentSlidesCount = 0;
-        visibleSections.forEach((section) => {
-          const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
-          contentSlidesCount += Math.ceil(visibleItems.length / 4);
-        });
-        const maxSlidesFromContent = 1 + contentSlidesCount + 1;
-        return Math.max(maxSlidesFromElements, maxSlidesFromContent);
-      })()
+    ? project.content.sections.length
     : 1;
 
-  const scaledWidth = canvas.widthPx * numSlides * zoom;
-  const scaledHeight = canvas.heightPx * zoom;
+  // Clamp and sanitize zoom to a finite positive number with a minimum bound of 0.01
+  const sanitizedZoom = typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0
+    ? Math.max(0.01, zoom)
+    : 1;
+
+  const scaledWidth = canvas.widthPx * numSlides * sanitizedZoom;
+  const scaledHeight = canvas.heightPx * sanitizedZoom;
 
   return (
     <div
@@ -60,7 +47,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = ({
           position: 'absolute',
           top: 0,
           left: 0,
-          transform: `scale(${zoom})`,
+          transform: `scale(${sanitizedZoom})`,
           transformOrigin: 'top left',
         }}
       >

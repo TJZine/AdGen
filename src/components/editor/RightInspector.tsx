@@ -27,9 +27,26 @@ export const RightInspector: React.FC = () => {
     legibilityPreset: 'none',
   };
 
+  const [uploadError, setUploadError] = React.useState<string | null>(null);
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setUploadError(null);
+
+    // Client-side validation: limit size to 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('File size exceeds the 5MB limit');
+      return;
+    }
+
+    // Client-side validation: allowed MIME types
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Unsupported file type. Only JPEG, PNG, and WebP are allowed.');
+      return;
+    }
 
     const formData = new FormData();
     formData.append('file', file);
@@ -37,19 +54,23 @@ export const RightInspector: React.FC = () => {
     try {
       const res = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          'x-user-id': 'user_admin',
+        },
         body: formData,
       });
-      if (!res.ok) throw new Error('Upload failed');
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Upload failed');
+      }
       const newAsset = await res.json();
 
-      useEditorStore.setState((state) => ({
-        assets: [...state.assets, newAsset],
-      }));
+      useEditorStore.getState().addAsset(newAsset);
 
       updateProjectField('polishedBackground.assetId', newAsset.id);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to upload background:', err);
-      alert('Failed to upload image. Please ensure it is a valid JPEG, PNG, or WebP.');
+      setUploadError(err.message || 'Failed to upload image. Please try again.');
     }
   };
 
@@ -573,6 +594,11 @@ export const RightInspector: React.FC = () => {
               className="text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 cursor-pointer"
               data-testid="bg-file-upload"
             />
+            {uploadError && (
+              <span className="text-xs text-red-600 font-semibold" data-testid="upload-error">
+                {uploadError}
+              </span>
+            )}
           </div>
 
           {polishedBg.assetId && (

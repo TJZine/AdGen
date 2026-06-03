@@ -61,8 +61,30 @@ export default async function RenderCanvasPage({
     },
   };
 
-  // Fetch assets to render images properly
-  const dbAssets = await prisma.asset.findMany();
+  // Calculate referenced asset IDs
+  const referencedIds = new Set<string>();
+  if (project.polishedBackground?.assetId) {
+    referencedIds.add(project.polishedBackground.assetId);
+  }
+  if (project.brand.logoAssetId) {
+    referencedIds.add(project.brand.logoAssetId);
+  }
+  project.content.sections.forEach((section) => {
+    section.items.forEach((item) => {
+      if (item.imageAssetId) {
+        referencedIds.add(item.imageAssetId);
+      }
+    });
+  });
+
+  // Fetch only referenced assets to render images properly
+  const dbAssets = await prisma.asset.findMany({
+    where: {
+      id: {
+        in: Array.from(referencedIds),
+      },
+    },
+  });
   const assets = dbAssets.map(mapPrismaAssetToZod);
 
   const showOverlay = mode === 'full' || mode === 'overlay';
@@ -96,25 +118,7 @@ export default async function RenderCanvasPage({
       ))}
       {(() => {
         const numSlides = solvedProject.layout?.layoutFamily === 'social_carousel'
-          ? (() => {
-              const elementsList = solvedProject.layout.elements || [];
-              let maxSlidesFromElements = 1;
-              if (elementsList.length > 0) {
-                const maxX = Math.max(...elementsList.map(el => el.x + el.width));
-                maxSlidesFromElements = Math.max(1, Math.ceil(maxX / solvedProject.canvas.widthPx));
-              }
-              
-              const visibleSections = solvedProject.content.sections.filter(
-                (s) => s.items && s.items.some((item) => item.visibility !== 'hidden')
-              );
-              let contentSlidesCount = 0;
-              visibleSections.forEach((section) => {
-                const visibleItems = section.items.filter((item) => item.visibility !== 'hidden');
-                contentSlidesCount += Math.ceil(visibleItems.length / 4);
-              });
-              const maxSlidesFromContent = 1 + contentSlidesCount + 1;
-              return Math.max(maxSlidesFromElements, maxSlidesFromContent);
-            })()
+          ? solvedProject.content.sections.length
           : 1;
 
         const totalWidth = solvedProject.canvas.widthPx * numSlides;

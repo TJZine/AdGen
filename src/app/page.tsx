@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/db';
 import { Project } from '@/lib/schemas/project';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ export default async function DashboardPage() {
   // Server Action to handle project creation
   async function createProject() {
     'use server';
-    const id = `project_${Math.random().toString(36).substring(2, 11)}`;
+    const id = `project_${crypto.randomUUID()}`;
     
     const newProjectData: Project = {
       id,
@@ -112,16 +113,24 @@ export default async function DashboardPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    await prisma.project.create({
-      data: {
-        id,
-        name: newProjectData.name,
-        type: newProjectData.type,
-        contentJson: JSON.stringify(newProjectData),
-      },
-    });
+    let created = false;
+    try {
+      await prisma.project.create({
+        data: {
+          id,
+          name: newProjectData.name,
+          type: newProjectData.type,
+          contentJson: JSON.stringify(newProjectData),
+        },
+      });
+      created = true;
+    } catch (error) {
+      console.error('Failed to create new project:', error);
+    }
 
-    redirect(`/editor/${id}`);
+    if (created) {
+      redirect(`/editor/${id}`);
+    }
   }
 
   return (
