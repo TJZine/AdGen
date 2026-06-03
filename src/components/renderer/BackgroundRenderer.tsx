@@ -1,3 +1,5 @@
+"use client";
+
 import React from 'react';
 import { Project, LayoutElement, Asset } from '../../lib/schemas/project';
 import { fitText } from '../../lib/layout/textFit';

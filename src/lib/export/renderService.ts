@@ -621,6 +621,12 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
         timeout: 10000,
       });
 
+      const solved = solveLayout(projectResult.data);
+      const hasQrCode = solved.elements.some(e => e.type === 'qr_code');
+      if (hasQrCode) {
+        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+      }
+
       // 7. Run page.pdf with exact dimensions in pixels
       const pdfBuffer = await page.pdf({
         width: `${viewportWidth}px`,
