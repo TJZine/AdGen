@@ -1,5 +1,5 @@
 import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { prisma } from '../db';
+import { prisma, withDbRetry } from '../db';
 import { ProjectSchema, type Project, type LayoutElement, type Section } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
 import { fitText } from '../layout/textFit';
@@ -145,9 +145,11 @@ export async function renderLayoutPng(
   await limiter.acquire();
   try {
     // 1. Fetch project dimensions from database
-    const projectRecord = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
+    const projectRecord = await withDbRetry(() =>
+      prisma.project.findUnique({
+        where: { id: projectId },
+      })
+    );
 
     if (!projectRecord) {
       throw new Error(`Project with ID ${projectId} not found`);
@@ -238,9 +240,11 @@ export async function renderLayoutImages(
 ): Promise<{ full: Buffer; backgroundOnly: Buffer }> {
   await limiter.acquire();
   try {
-    const projectRecord = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
+    const projectRecord = await withDbRetry(() =>
+      prisma.project.findUnique({
+        where: { id: projectId },
+      })
+    );
 
     if (!projectRecord) {
       throw new Error(`Project with ID ${projectId} not found`);
@@ -337,9 +341,11 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
   await limiter.acquire();
   try {
     // 1. Fetch project dimensions from database
-    const projectRecord = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
+    const projectRecord = await withDbRetry(() =>
+      prisma.project.findUnique({
+        where: { id: projectId },
+      })
+    );
 
     if (!projectRecord) {
       throw new Error(`Project with ID ${projectId} not found`);
@@ -431,9 +437,11 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
  */
 export async function renderLayoutOverlaySvg(projectId: string): Promise<string> {
   // 1. Fetch project from database
-  const projectRecord = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
+  const projectRecord = await withDbRetry(() =>
+    prisma.project.findUnique({
+      where: { id: projectId },
+    })
+  );
 
   if (!projectRecord) {
     throw new Error(`Project with ID ${projectId} not found`);
@@ -606,9 +614,11 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
   await limiter.acquire();
   try {
     // 1. Fetch project dimensions from database
-    const projectRecord = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
+    const projectRecord = await withDbRetry(() =>
+      prisma.project.findUnique({
+        where: { id: projectId },
+      })
+    );
 
     if (!projectRecord) {
       throw new Error(`Project with ID ${projectId} not found`);

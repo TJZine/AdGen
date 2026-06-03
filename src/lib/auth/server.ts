@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { prisma } from '@/lib/db';
+import { prisma, withDbRetry } from '@/lib/db';
 
 export type AuthenticatedRole = 'admin' | 'user';
 
@@ -130,10 +130,12 @@ export async function authorizeProjectAccess(
     return { authorized: false, response: unauthorizedResponse() };
   }
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { id: true, ownerId: true },
-  });
+  const project = await withDbRetry(() =>
+    prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, ownerId: true },
+    })
+  );
 
   if (!project) {
     return {

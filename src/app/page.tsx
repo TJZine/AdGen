@@ -12,14 +12,16 @@ export default async function DashboardPage() {
   const cookieStore = await cookies();
   const currentUser = authenticateSessionCookie(cookieStore.get(SESSION_COOKIE_NAME)?.value);
 
-  const projects = await prisma.project.findMany({
-    where: !currentUser
-      ? { id: '__unauthorized__' }
-      : currentUser.role !== 'admin'
-      ? { ownerId: currentUser.id }
-      : undefined,
-    orderBy: { updatedAt: 'desc' },
-  });
+  const projects = await withDbRetry(() =>
+    prisma.project.findMany({
+      where: !currentUser
+        ? { id: '__unauthorized__' }
+        : currentUser.role !== 'admin'
+        ? { ownerId: currentUser.id }
+        : undefined,
+      orderBy: { updatedAt: 'desc' },
+    })
+  );
 
   // Server Action to handle project creation
   async function createProject() {

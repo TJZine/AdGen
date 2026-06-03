@@ -18,6 +18,7 @@ vi.mock('@/lib/db', () => ({
       findUnique: vi.fn(),
     },
   },
+  withDbRetry: vi.fn((fn) => fn()),
 }));
 
 const mockProject = {

@@ -1,6 +1,6 @@
 import * as archiver from 'archiver';
 import { PassThrough } from 'stream';
-import { prisma } from '../db';
+import { prisma, withDbRetry } from '../db';
 import { ProjectSchema } from '../schemas/project';
 import { renderLayoutImages } from './renderService';
 import { compilePrompt, getNegativePrompt } from './promptBuilder';
@@ -34,9 +34,11 @@ export async function createHandoffPackage(projectId: string): Promise<Buffer> {
   });
 
   // 1. Fetch project from SQLite
-  const projectRecord = await prisma.project.findUnique({
-    where: { id: projectId },
-  });
+  const projectRecord = await withDbRetry(() =>
+    prisma.project.findUnique({
+      where: { id: projectId },
+    })
+  );
 
   if (!projectRecord) {
     throw new Error(`Project with ID ${projectId} not found`);

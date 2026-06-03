@@ -49,16 +49,24 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 let pragmasInitialized = false;
+let pragmasPromise: Promise<void> | null = null;
 
-export async function ensurePragmas(client: PrismaClient = prisma) {
+export async function ensurePragmas(client: PrismaClient = prisma): Promise<void> {
   if (pragmasInitialized) return;
-  try {
-    await client.$executeRawUnsafe('PRAGMA journal_mode = WAL;');
-    await client.$executeRawUnsafe('PRAGMA synchronous = NORMAL;');
-    pragmasInitialized = true;
-  } catch (error) {
-    console.error('Failed to run pragmas on DB connect:', error);
-  }
+  if (pragmasPromise) return pragmasPromise;
+
+  pragmasPromise = (async () => {
+    try {
+      await client.$executeRawUnsafe('PRAGMA journal_mode = WAL;');
+      await client.$executeRawUnsafe('PRAGMA synchronous = NORMAL;');
+      pragmasInitialized = true;
+    } catch (error) {
+      console.error('Failed to run pragmas on DB connect:', error);
+      pragmasPromise = null; // reset to allow retry
+    }
+  })();
+
+  return pragmasPromise;
 }
 
 export async function withDbRetry<T>(fn: () => Promise<T>, maxRetries = 5, delayMs = 100): Promise<T> {

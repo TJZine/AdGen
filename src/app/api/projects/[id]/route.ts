@@ -39,10 +39,12 @@ export async function PUT(
       );
     }
 
-    const existingProject = await prisma.project.findUnique({
-      where: { id },
-      select: { id: true, ownerId: true },
-    });
+    const existingProject = await withDbRetry(() =>
+      prisma.project.findUnique({
+        where: { id },
+        select: { id: true, ownerId: true },
+      })
+    );
 
     if (!existingProject) {
       return NextResponse.json(
@@ -71,10 +73,12 @@ export async function PUT(
 
 
     if (updateResult.count === 0) {
-      const exists = await prisma.project.findUnique({
-        where: { id },
-        select: { id: true },
-      });
+      const exists = await withDbRetry(() =>
+        prisma.project.findUnique({
+          where: { id },
+          select: { id: true },
+        })
+      );
 
       return NextResponse.json(
         exists

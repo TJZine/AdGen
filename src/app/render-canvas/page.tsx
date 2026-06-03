@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { prisma } from '@/lib/db';
+import { prisma, withDbRetry } from '@/lib/db';
 import { ProjectSchema, mapPrismaAssetToZod, Project } from '@/lib/schemas/project';
 import { solveLayout, getNumSlides } from '@/lib/layout/solver';
 import { CanvasPreview } from '@/components/renderer/CanvasPreview';
@@ -18,9 +18,11 @@ export default async function RenderCanvasPage({
     return notFound();
   }
 
-  const projectRecord = await prisma.project.findUnique({
-    where: { id },
-  });
+  const projectRecord = await withDbRetry(() =>
+    prisma.project.findUnique({
+      where: { id },
+    })
+  );
 
   if (!projectRecord) {
     return notFound();
@@ -79,13 +81,15 @@ export default async function RenderCanvasPage({
   });
 
   // Fetch only referenced assets to render images properly
-  const dbAssets = await prisma.asset.findMany({
-    where: {
-      id: {
-        in: Array.from(referencedIds),
+  const dbAssets = await withDbRetry(() =>
+    prisma.asset.findMany({
+      where: {
+        id: {
+          in: Array.from(referencedIds),
+        },
       },
-    },
-  });
+    })
+  );
   const assets = dbAssets.map(mapPrismaAssetToZod);
 
   const showOverlay = mode === 'full' || mode === 'overlay';

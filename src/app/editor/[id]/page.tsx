@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { prisma } from '@/lib/db';
+import { prisma, withDbRetry } from '@/lib/db';
 import { EditorWorkspace } from '@/components/editor/EditorWorkspace';
 import { Project, Asset, mapPrismaAssetToZod, ProjectSchema } from '@/lib/schemas/project';
 
@@ -14,9 +14,11 @@ export default async function EditorPage({ params }: PageProps) {
     notFound();
   }
 
-  const dbProject = await prisma.project.findUnique({
-    where: { id },
-  });
+  const dbProject = await withDbRetry(() =>
+    prisma.project.findUnique({
+      where: { id },
+    })
+  );
 
   if (!dbProject) {
     notFound();
@@ -37,7 +39,7 @@ export default async function EditorPage({ params }: PageProps) {
   }
 
   // Fetch all assets
-  const dbAssets = await prisma.asset.findMany();
+  const dbAssets = await withDbRetry(() => prisma.asset.findMany());
   const assets: Asset[] = dbAssets.map(mapPrismaAssetToZod);
 
   return (

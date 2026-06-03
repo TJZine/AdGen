@@ -10,6 +10,7 @@ vi.mock('@/lib/db', () => ({
       findUnique: vi.fn(),
     },
   },
+  withDbRetry: vi.fn((fn) => fn()),
 }));
 
 vi.mock('@/lib/export/renderService', () => ({
