@@ -13,7 +13,10 @@ import { compilePrompt, getNegativePrompt } from './promptBuilder';
  * @returns Promise<Buffer> - The ZIP file as a binary Buffer
  */
 export async function createHandoffPackage(projectId: string): Promise<Buffer> {
-  const archive = new (archiver as any).ZipArchive({ zlib: { level: 9 } });
+  const archiverLib = (archiver as unknown) as {
+    ZipArchive: new (options?: { zlib: { level: number } }) => archiver.Archiver;
+  };
+  const archive = new archiverLib.ZipArchive({ zlib: { level: 9 } });
   const stream = new PassThrough();
   const buffers: Buffer[] = [];
 

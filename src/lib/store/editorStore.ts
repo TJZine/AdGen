@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
-import { Project, Asset, Section, Item } from '../schemas/project';
+import { Project, Asset, Section, Item, LayoutVariant } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
 
 export interface EditorState {
@@ -13,6 +13,11 @@ export interface EditorState {
   isSaving: boolean;
   hasUnsavedChanges: boolean;
   lastSavedProjectJson: string | null;
+  layoutVariants: LayoutVariant[];
+  activeVariantId: string | null;
+  comparisonVariantId: string | null;
+  primaryLayout: Project['layout'];
+  primaryPolishedBackground: Project['polishedBackground'];
 
   setProject: (project: Project, assets: Asset[]) => void;
   updateProjectField: (path: string, value: any) => void;
@@ -30,10 +35,16 @@ export interface EditorState {
   saveProject: () => Promise<void>;
   addAsset: (asset: Asset) => void;
   addAssets: (assets: Asset[]) => void;
+  createVariant: (name: string, layoutFamily: string, density: 'loose' | 'normal' | 'dense') => void;
+  deleteVariant: (variantId: string) => void;
+  duplicateVariant: (variantId: string | null) => void;
+  selectActiveVariant: (variantId: string | null) => void;
+  selectComparisonVariant: (variantId: string | null) => void;
+  applyVariantAsPrimary: (variantId: string) => void;
 }
 
-const cloneProject = (p: Project): Project => {
-  return JSON.parse(JSON.stringify(p)) as Project;
+const cloneProject = <T>(p: T): T => {
+  return JSON.parse(JSON.stringify(p)) as T;
 };
 
 const setNestedField = (obj: any, path: string, value: any) => {
@@ -47,6 +58,17 @@ const setNestedField = (obj: any, path: string, value: any) => {
     current = current[part];
   }
   current[parts[parts.length - 1]] = value;
+};
+
+const generateUUID = (): string => {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 };
 
 const initialDefaultProject: Project = {
@@ -113,6 +135,108 @@ const initialDefaultProject: Project = {
   },
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+  layoutVariants: [],
+  activeVariantId: null,
+};
+
+const resolveAndUpdateState = (
+  nextProject: Project,
+  get: () => EditorState,
+  isContentChange: boolean
+) => {
+  const state = get();
+  const activeVariantId = state.activeVariantId;
+  let primaryLayout = { ...state.primaryLayout };
+  let primaryPolishedBackground = { ...state.primaryPolishedBackground };
+  let layoutVariants = [...state.layoutVariants];
+
+  if (isContentChange) {
+    // Content changed, re-solve primary layout + all variants
+    const solvedPrimary = solveLayout(nextProject, {
+      id: 'primary-mock',
+      name: 'Primary Layout Mock',
+      layoutFamily: primaryLayout.layoutFamily,
+      density: primaryLayout.density,
+      elements: primaryLayout.elements,
+      score: primaryLayout.score,
+      warnings: primaryLayout.warnings,
+      polishedBackground: primaryPolishedBackground,
+    });
+    primaryLayout = {
+      ...primaryLayout,
+      elements: solvedPrimary.elements,
+      score: solvedPrimary.score,
+      warnings: solvedPrimary.warnings,
+    };
+
+    layoutVariants = layoutVariants.map((v) => {
+      const solvedVariant = solveLayout(nextProject, v);
+      return {
+        ...v,
+        elements: solvedVariant.elements,
+        score: solvedVariant.score,
+        warnings: solvedVariant.warnings,
+      };
+    });
+  } else {
+    // Only active layout edited
+    if (!activeVariantId) {
+      const solved = solveLayout(nextProject);
+      primaryLayout = {
+        ...nextProject.layout,
+        elements: solved.elements,
+        score: solved.score,
+        warnings: solved.warnings,
+      };
+      primaryPolishedBackground = nextProject.polishedBackground;
+    } else {
+      const solved = solveLayout(nextProject);
+      layoutVariants = layoutVariants.map((v) => {
+        if (v.id === activeVariantId) {
+          return {
+            ...v,
+            layoutFamily: nextProject.layout.layoutFamily,
+            density: nextProject.layout.density,
+            elements: solved.elements,
+            score: solved.score,
+            warnings: solved.warnings,
+            polishedBackground: nextProject.polishedBackground ? cloneProject(nextProject.polishedBackground) : undefined,
+          };
+        }
+        return v;
+      });
+    }
+  }
+
+  if (activeVariantId) {
+    const activeVariant = layoutVariants.find((v) => v.id === activeVariantId);
+    if (activeVariant) {
+      nextProject.layout = {
+        ...nextProject.layout,
+        layoutFamily: activeVariant.layoutFamily,
+        density: activeVariant.density,
+        elements: cloneProject(activeVariant.elements as any),
+        score: activeVariant.score,
+        warnings: activeVariant.warnings,
+      };
+      if (activeVariant.polishedBackground) {
+        nextProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+      }
+    }
+  } else {
+    nextProject.layout = cloneProject(primaryLayout);
+    nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
+  }
+
+  nextProject.layoutVariants = layoutVariants;
+  nextProject.activeVariantId = activeVariantId;
+
+  return {
+    project: nextProject,
+    layoutVariants,
+    primaryLayout,
+    primaryPolishedBackground,
+  };
 };
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -125,64 +249,106 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   isSaving: false,
   hasUnsavedChanges: false,
   lastSavedProjectJson: null,
+  layoutVariants: [],
+  activeVariantId: null,
+  comparisonVariantId: null,
+  primaryLayout: initialDefaultProject.layout,
+  primaryPolishedBackground: initialDefaultProject.polishedBackground,
 
   setProject: (project, assets) => {
-    // Clones the project and runs the solver just in case the initial state needs solved elements
-    const nextProject = cloneProject(project);
-    const solved = solveLayout(nextProject);
-    nextProject.layout.elements = solved.elements;
-    nextProject.layout.score = solved.score;
-    nextProject.layout.warnings = solved.warnings;
+    const canonicalProject = cloneProject(project);
+    const solved = solveLayout(canonicalProject);
+    canonicalProject.layout.elements = solved.elements;
+    canonicalProject.layout.score = solved.score;
+    canonicalProject.layout.warnings = solved.warnings;
+
+    const layoutVariants = canonicalProject.layoutVariants || [];
+    const activeVariantId = canonicalProject.activeVariantId || null;
+
+    const primaryLayout = cloneProject(canonicalProject.layout);
+    const primaryPolishedBackground = cloneProject(canonicalProject.polishedBackground);
+
+    const activeProject = cloneProject(canonicalProject);
+    if (activeVariantId) {
+      const activeVariant = layoutVariants.find((v) => v.id === activeVariantId);
+      if (activeVariant) {
+        activeProject.layout = {
+          ...activeProject.layout,
+          layoutFamily: activeVariant.layoutFamily,
+          density: activeVariant.density,
+          elements: cloneProject(activeVariant.elements as any),
+          score: activeVariant.score,
+          warnings: activeVariant.warnings,
+        };
+        if (activeVariant.polishedBackground) {
+          activeProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+        }
+      }
+    }
 
     set({
-      project: nextProject,
+      project: activeProject,
       assets: assets || [],
       selectedElementId: null,
+      zoom: 0.75,
       undoStack: [],
       redoStack: [],
       isSaving: false,
       hasUnsavedChanges: false,
-      lastSavedProjectJson: JSON.stringify(nextProject),
+      lastSavedProjectJson: JSON.stringify(canonicalProject),
+      layoutVariants,
+      activeVariantId,
+      comparisonVariantId: null,
+      primaryLayout,
+      primaryPolishedBackground,
     });
   },
 
   updateProjectField: (path, value) => {
-    const { project, undoStack } = get();
-    const nextProject = cloneProject(project);
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
 
+    const nextProject = cloneProject(project);
     setNestedField(nextProject, path, value);
 
-    const solved = solveLayout(nextProject);
-    nextProject.layout.elements = solved.elements;
-    nextProject.layout.score = solved.score;
-    nextProject.layout.warnings = solved.warnings;
+    const isContentChange = !path.startsWith('layout') && !path.startsWith('polishedBackground');
+    const updated = resolveAndUpdateState(nextProject, get, isContentChange);
 
     const MAX_HISTORY = 50;
     set({
-      project: nextProject,
-      undoStack: [...undoStack, project].slice(-MAX_HISTORY),
+      ...updated,
+      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
       redoStack: [],
       hasUnsavedChanges: true,
     });
   },
 
   updateSection: (sectionId, updates) => {
-    const { project, undoStack } = get();
-    const nextProject = cloneProject(project);
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
 
+    const nextProject = cloneProject(project);
     const section = nextProject.content.sections.find((s) => s.id === sectionId);
     if (section) {
       Object.assign(section, updates);
-
-      const solved = solveLayout(nextProject);
-      nextProject.layout.elements = solved.elements;
-      nextProject.layout.score = solved.score;
-      nextProject.layout.warnings = solved.warnings;
+      const updated = resolveAndUpdateState(nextProject, get, true);
 
       const MAX_HISTORY = 50;
       set({
-        project: nextProject,
-        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
+        ...updated,
+        undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
         redoStack: [],
         hasUnsavedChanges: true,
       });
@@ -190,9 +356,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateItem: (itemId, updates) => {
-    const { project, undoStack } = get();
-    const nextProject = cloneProject(project);
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
 
+    const nextProject = cloneProject(project);
     let itemFound = false;
     for (const section of nextProject.content.sections) {
       const itemIdx = section.items.findIndex((it) => it.id === itemId);
@@ -207,15 +380,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     if (itemFound) {
-      const solved = solveLayout(nextProject);
-      nextProject.layout.elements = solved.elements;
-      nextProject.layout.score = solved.score;
-      nextProject.layout.warnings = solved.warnings;
+      const updated = resolveAndUpdateState(nextProject, get, true);
 
       const MAX_HISTORY = 50;
       set({
-        project: nextProject,
-        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
+        ...updated,
+        undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
         redoStack: [],
         hasUnsavedChanges: true,
       });
@@ -223,46 +393,55 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   reorderSections: (sectionIds) => {
-    const { project, undoStack } = get();
-    const nextProject = cloneProject(project);
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
 
+    const nextProject = cloneProject(project);
     const sections = [...nextProject.content.sections];
     const orderedSections = sectionIds
       .map((id) => sections.find((s) => s.id === id))
       .filter((s): s is Section => !!s);
 
-    // Append any that were not in the sectionIds list
     sections.forEach((s) => {
       if (!orderedSections.find((os) => os.id === s.id)) {
         orderedSections.push(s);
       }
     });
 
-    // Update section ordering fields
     orderedSections.forEach((s, idx) => {
       s.order = idx;
     });
 
     nextProject.content.sections = orderedSections;
 
-    const solved = solveLayout(nextProject);
-    nextProject.layout.elements = solved.elements;
-    nextProject.layout.score = solved.score;
-    nextProject.layout.warnings = solved.warnings;
+    const updated = resolveAndUpdateState(nextProject, get, true);
 
     const MAX_HISTORY = 50;
     set({
-      project: nextProject,
-      undoStack: [...undoStack, project].slice(-MAX_HISTORY),
+      ...updated,
+      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
       redoStack: [],
       hasUnsavedChanges: true,
     });
   },
 
   reorderItems: (sectionId, itemIds) => {
-    const { project, undoStack } = get();
-    const nextProject = cloneProject(project);
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
 
+    const nextProject = cloneProject(project);
     const section = nextProject.content.sections.find((s) => s.id === sectionId);
     if (section) {
       const items = [...section.items];
@@ -270,7 +449,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         .map((id) => items.find((it) => it.id === id))
         .filter((it): it is Item => !!it);
 
-      // Append any that were not in the itemIds list
       items.forEach((it) => {
         if (!orderedItems.find((oi) => oi.id === it.id)) {
           orderedItems.push(it);
@@ -279,15 +457,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       section.items = orderedItems;
 
-      const solved = solveLayout(nextProject);
-      nextProject.layout.elements = solved.elements;
-      nextProject.layout.score = solved.score;
-      nextProject.layout.warnings = solved.warnings;
+      const updated = resolveAndUpdateState(nextProject, get, true);
 
       const MAX_HISTORY = 50;
       set({
-        project: nextProject,
-        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
+        ...updated,
+        undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
         redoStack: [],
         hasUnsavedChanges: true,
       });
@@ -303,9 +478,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   updateLayoutElements: (updates) => {
-    const { project, undoStack } = get();
-    const nextProject = cloneProject(project);
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
 
+    const nextProject = cloneProject(project);
     let hasChanges = false;
     for (const update of updates) {
       const element = nextProject.layout.elements.find((el) => el.id === update.id);
@@ -330,19 +512,313 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     if (hasChanges) {
-      const solved = solveLayout(nextProject);
-      nextProject.layout.elements = solved.elements;
-      nextProject.layout.score = solved.score;
-      nextProject.layout.warnings = solved.warnings;
+      const updated = resolveAndUpdateState(nextProject, get, false);
 
       const MAX_HISTORY = 50;
       set({
-        project: nextProject,
-        undoStack: [...undoStack, project].slice(-MAX_HISTORY),
+        ...updated,
+        undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
         redoStack: [],
         hasUnsavedChanges: true,
       });
     }
+  },
+
+  createVariant: (name, layoutFamily, density) => {
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    if (layoutVariants.length >= 5) return;
+
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
+
+    const newId = generateUUID();
+    const solved = solveLayout(project, {
+      id: newId,
+      name,
+      layoutFamily,
+      density,
+      elements: [],
+      score: 100,
+      warnings: [],
+      polishedBackground: project.polishedBackground ? cloneProject(project.polishedBackground) : undefined,
+    });
+    const newVariant: LayoutVariant = {
+      id: newId,
+      name,
+      layoutFamily,
+      density,
+      elements: solved.elements,
+      score: solved.score,
+      warnings: solved.warnings,
+      polishedBackground: project.polishedBackground ? cloneProject(project.polishedBackground) : undefined,
+    };
+
+    const nextLayoutVariants = [...layoutVariants, newVariant];
+    const nextProject = cloneProject(project);
+    nextProject.layoutVariants = nextLayoutVariants;
+    nextProject.activeVariantId = activeVariantId;
+
+    if (activeVariantId) {
+      const activeVariant = nextLayoutVariants.find((v) => v.id === activeVariantId);
+      if (activeVariant) {
+        nextProject.layout = {
+          ...nextProject.layout,
+          layoutFamily: activeVariant.layoutFamily,
+          density: activeVariant.density,
+          elements: cloneProject(activeVariant.elements as any),
+          score: activeVariant.score,
+          warnings: activeVariant.warnings,
+        };
+        if (activeVariant.polishedBackground) {
+          nextProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+        }
+      }
+    } else {
+      nextProject.layout = cloneProject(primaryLayout);
+      nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
+    }
+
+    const MAX_HISTORY = 50;
+    set({
+      project: nextProject,
+      layoutVariants: nextLayoutVariants,
+      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+      redoStack: [],
+      hasUnsavedChanges: true,
+    });
+  },
+
+  deleteVariant: (variantId) => {
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, comparisonVariantId, undoStack } = get();
+    if (!layoutVariants.some((v) => v.id === variantId)) return;
+
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
+
+    const nextLayoutVariants = layoutVariants.filter((v) => v.id !== variantId);
+    let nextActiveId = activeVariantId;
+    let nextComparisonId = comparisonVariantId;
+
+    if (activeVariantId === variantId) {
+      nextActiveId = null;
+    }
+    if (comparisonVariantId === variantId) {
+      nextComparisonId = null;
+    }
+
+    const nextProject = cloneProject(project);
+    nextProject.layoutVariants = nextLayoutVariants;
+    nextProject.activeVariantId = nextActiveId;
+
+    if (nextActiveId) {
+      const activeVariant = nextLayoutVariants.find((v) => v.id === nextActiveId);
+      if (activeVariant) {
+        nextProject.layout = {
+          ...nextProject.layout,
+          layoutFamily: activeVariant.layoutFamily,
+          density: activeVariant.density,
+          elements: cloneProject(activeVariant.elements as any),
+          score: activeVariant.score,
+          warnings: activeVariant.warnings,
+        };
+        if (activeVariant.polishedBackground) {
+          nextProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+        }
+      }
+    } else {
+      nextProject.layout = cloneProject(primaryLayout);
+      nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
+    }
+
+    const MAX_HISTORY = 50;
+    set({
+      project: nextProject,
+      layoutVariants: nextLayoutVariants,
+      activeVariantId: nextActiveId,
+      comparisonVariantId: nextComparisonId,
+      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+      redoStack: [],
+      hasUnsavedChanges: true,
+    });
+  },
+
+  duplicateVariant: (variantId: string | null) => {
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    if (layoutVariants.length >= 5) return;
+    const baseVariant = variantId ? layoutVariants.find((v) => v.id === variantId) : undefined;
+
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
+
+    const newId = generateUUID();
+    let newVariant: LayoutVariant;
+
+    if (!baseVariant) {
+      newVariant = {
+        id: newId,
+        name: 'Primary Layout (Copy)',
+        layoutFamily: primaryLayout.layoutFamily,
+        density: primaryLayout.density,
+        elements: cloneProject(primaryLayout.elements as any),
+        score: primaryLayout.score,
+        warnings: [...primaryLayout.warnings],
+        polishedBackground: primaryPolishedBackground ? cloneProject(primaryPolishedBackground) : undefined,
+      };
+    } else {
+      newVariant = {
+        id: newId,
+        name: `${baseVariant.name} (Copy)`,
+        layoutFamily: baseVariant.layoutFamily,
+        density: baseVariant.density,
+        elements: cloneProject(baseVariant.elements as any),
+        score: baseVariant.score,
+        warnings: [...baseVariant.warnings],
+        polishedBackground: baseVariant.polishedBackground ? cloneProject(baseVariant.polishedBackground) : undefined,
+      };
+    }
+
+    const nextLayoutVariants = [...layoutVariants, newVariant];
+    const nextProject = cloneProject(project);
+    nextProject.layoutVariants = nextLayoutVariants;
+    nextProject.activeVariantId = activeVariantId;
+
+    if (activeVariantId) {
+      const activeVariant = nextLayoutVariants.find((v) => v.id === activeVariantId);
+      if (activeVariant) {
+        nextProject.layout = {
+          ...nextProject.layout,
+          layoutFamily: activeVariant.layoutFamily,
+          density: activeVariant.density,
+          elements: cloneProject(activeVariant.elements as any),
+          score: activeVariant.score,
+          warnings: activeVariant.warnings,
+        };
+        if (activeVariant.polishedBackground) {
+          nextProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+        }
+      }
+    } else {
+      nextProject.layout = cloneProject(primaryLayout);
+      nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
+    }
+
+    const MAX_HISTORY = 50;
+    set({
+      project: nextProject,
+      layoutVariants: nextLayoutVariants,
+      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+      redoStack: [],
+      hasUnsavedChanges: true,
+    });
+  },
+
+  selectActiveVariant: (variantId) => {
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    if (activeVariantId === variantId) return;
+
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
+
+    const nextProject = cloneProject(project);
+    nextProject.activeVariantId = variantId;
+
+    if (variantId) {
+      const activeVariant = layoutVariants.find((v) => v.id === variantId);
+      if (activeVariant) {
+        nextProject.layout = {
+          ...nextProject.layout,
+          layoutFamily: activeVariant.layoutFamily,
+          density: activeVariant.density,
+          elements: cloneProject(activeVariant.elements as any),
+          score: activeVariant.score,
+          warnings: activeVariant.warnings,
+        };
+        if (activeVariant.polishedBackground) {
+          nextProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+        }
+      }
+    } else {
+      nextProject.layout = cloneProject(primaryLayout);
+      nextProject.polishedBackground = cloneProject(primaryPolishedBackground);
+    }
+
+    const MAX_HISTORY = 50;
+    set({
+      project: nextProject,
+      activeVariantId: variantId,
+      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+      redoStack: [],
+      hasUnsavedChanges: true,
+    });
+  },
+
+  selectComparisonVariant: (variantId) => {
+    set({
+      comparisonVariantId: variantId,
+    });
+  },
+
+  applyVariantAsPrimary: (variantId) => {
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId, undoStack } = get();
+    const variant = layoutVariants.find((v) => v.id === variantId);
+    if (!variant) return;
+
+    const canonicalCurrentProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
+
+    const newPrimaryLayout = {
+      ...primaryLayout,
+      layoutFamily: variant.layoutFamily,
+      density: variant.density,
+      elements: cloneProject(variant.elements as any),
+      score: variant.score,
+      warnings: [...variant.warnings],
+    };
+
+    const newPrimaryPolishedBackground = variant.polishedBackground
+      ? cloneProject(variant.polishedBackground)
+      : cloneProject(primaryPolishedBackground);
+
+    const nextProject = cloneProject(project);
+    nextProject.activeVariantId = null;
+    nextProject.layout = cloneProject(newPrimaryLayout);
+    nextProject.polishedBackground = cloneProject(newPrimaryPolishedBackground);
+
+    const MAX_HISTORY = 50;
+    set({
+      project: nextProject,
+      activeVariantId: null,
+      primaryLayout: newPrimaryLayout,
+      primaryPolishedBackground: newPrimaryPolishedBackground,
+      undoStack: [...undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
+      redoStack: [],
+      hasUnsavedChanges: true,
+    });
   },
 
   undo: () => {
@@ -350,11 +826,47 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (state.undoStack.length === 0) return {};
       const nextUndoStack = [...state.undoStack];
       const poppedProject = nextUndoStack.pop()!;
+
+      const layoutVariants = poppedProject.layoutVariants || [];
+      const activeVariantId = poppedProject.activeVariantId || null;
+      const primaryLayout = cloneProject(poppedProject.layout);
+      const primaryPolishedBackground = cloneProject(poppedProject.polishedBackground);
+
+      const activeProject = cloneProject(poppedProject);
+      if (activeVariantId) {
+        const activeVariant = layoutVariants.find((v) => v.id === activeVariantId);
+        if (activeVariant) {
+          activeProject.layout = {
+            ...activeProject.layout,
+            layoutFamily: activeVariant.layoutFamily,
+            density: activeVariant.density,
+            elements: cloneProject(activeVariant.elements as any),
+            score: activeVariant.score,
+            warnings: activeVariant.warnings,
+          };
+          if (activeVariant.polishedBackground) {
+            activeProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+          }
+        }
+      }
+
+      const canonicalCurrentProject = {
+        ...cloneProject(state.project),
+        layout: cloneProject(state.primaryLayout),
+        polishedBackground: cloneProject(state.primaryPolishedBackground),
+        layoutVariants: cloneProject(state.layoutVariants),
+        activeVariantId: state.activeVariantId,
+      };
+
       const MAX_HISTORY = 50;
       return {
-        project: poppedProject,
+        project: activeProject,
+        layoutVariants,
+        activeVariantId,
+        primaryLayout,
+        primaryPolishedBackground,
         undoStack: nextUndoStack,
-        redoStack: [...state.redoStack, state.project].slice(-MAX_HISTORY),
+        redoStack: [...state.redoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
         hasUnsavedChanges: true,
       };
     });
@@ -365,10 +877,46 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (state.redoStack.length === 0) return {};
       const nextRedoStack = [...state.redoStack];
       const poppedProject = nextRedoStack.pop()!;
+
+      const layoutVariants = poppedProject.layoutVariants || [];
+      const activeVariantId = poppedProject.activeVariantId || null;
+      const primaryLayout = cloneProject(poppedProject.layout);
+      const primaryPolishedBackground = cloneProject(poppedProject.polishedBackground);
+
+      const activeProject = cloneProject(poppedProject);
+      if (activeVariantId) {
+        const activeVariant = layoutVariants.find((v) => v.id === activeVariantId);
+        if (activeVariant) {
+          activeProject.layout = {
+            ...activeProject.layout,
+            layoutFamily: activeVariant.layoutFamily,
+            density: activeVariant.density,
+            elements: cloneProject(activeVariant.elements as any),
+            score: activeVariant.score,
+            warnings: activeVariant.warnings,
+          };
+          if (activeVariant.polishedBackground) {
+            activeProject.polishedBackground = cloneProject(activeVariant.polishedBackground);
+          }
+        }
+      }
+
+      const canonicalCurrentProject = {
+        ...cloneProject(state.project),
+        layout: cloneProject(state.primaryLayout),
+        polishedBackground: cloneProject(state.primaryPolishedBackground),
+        layoutVariants: cloneProject(state.layoutVariants),
+        activeVariantId: state.activeVariantId,
+      };
+
       const MAX_HISTORY = 50;
       return {
-        project: poppedProject,
-        undoStack: [...state.undoStack, state.project].slice(-MAX_HISTORY),
+        project: activeProject,
+        layoutVariants,
+        activeVariantId,
+        primaryLayout,
+        primaryPolishedBackground,
+        undoStack: [...state.undoStack, canonicalCurrentProject].slice(-MAX_HISTORY),
         redoStack: nextRedoStack,
         hasUnsavedChanges: true,
       };
@@ -376,8 +924,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveProject: async () => {
-    const project = get().project;
-    const projectJsonBeforeSave = JSON.stringify(project);
+    const { project, primaryLayout, primaryPolishedBackground, layoutVariants, activeVariantId } = get();
+    const canonicalProject = {
+      ...cloneProject(project),
+      layout: cloneProject(primaryLayout),
+      polishedBackground: cloneProject(primaryPolishedBackground),
+      layoutVariants: cloneProject(layoutVariants),
+      activeVariantId,
+    };
+    const projectJsonBeforeSave = JSON.stringify(canonicalProject);
     set({ isSaving: true });
     try {
       const response = await fetch(`/api/projects/${project.id}`, {
@@ -392,12 +947,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         throw new Error(`Failed to save project. Status: ${response.status}`);
       }
 
-      const currentProjectJson = JSON.stringify(get().project);
-      const isStillSame = currentProjectJson === projectJsonBeforeSave;
-
       set({
         isSaving: false,
-        hasUnsavedChanges: !isStillSame,
+        hasUnsavedChanges: false,
         lastSavedProjectJson: projectJsonBeforeSave,
       });
     } catch (error) {

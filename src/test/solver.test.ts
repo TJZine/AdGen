@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { solveLayout } from '../lib/layout/solver';
-import { Project, SectionPriority, CanvasPresetSchema } from '../lib/schemas/project';
+import { Project, SectionPriority, CanvasPresetSchema, LayoutVariant } from '../lib/schemas/project';
 import { evaluateLayout } from '../lib/validation/rules';
 
 function createMockProject(itemCount: number, sectionPriorities: string[] = ['normal']): Project {
@@ -108,6 +108,8 @@ function createMockProject(itemCount: number, sectionPriorities: string[] = ['no
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    layoutVariants: [],
+    activeVariantId: null,
   };
 }
 
@@ -306,5 +308,52 @@ describe('HGP Layout Solver', () => {
     expect(solvedElement!.height).toBe(customHeight);
     expect(solvedElement!.locked).toBe(true);
     expect(solvedElement!.style.color).toBe('#ffffff');
+  });
+
+  it('should verify that solving for Variant A does not affect the coordinates of Variant B', () => {
+    const project = createMockProject(3);
+
+    // Create Variant A (hero_grid)
+    const variantA: LayoutVariant = {
+      id: 'variant-a-uuid',
+      name: 'Variant A',
+      layoutFamily: 'hero_grid',
+      density: 'normal',
+      elements: [],
+      score: 100,
+      warnings: [],
+    };
+
+    // Create Variant B (menu_listing)
+    const variantB: LayoutVariant = {
+      id: 'variant-b-uuid',
+      name: 'Variant B',
+      layoutFamily: 'menu_listing',
+      density: 'normal',
+      elements: [],
+      score: 100,
+      warnings: [],
+    };
+
+    // Solve for Variant A
+    const resultA = solveLayout(project, variantA);
+    
+    // Solve for Variant B
+    const resultB = solveLayout(project, variantB);
+
+    // Verify coordinates/elements are solved and are different/independent
+    expect(resultA.elements.length).toBeGreaterThan(0);
+    expect(resultB.elements.length).toBeGreaterThan(0);
+
+    // Let's find item-title-item-0 element in both results and check they differ
+    const titleA = resultA.elements.find(el => el.id === 'item-title-item-0');
+    const titleB = resultB.elements.find(el => el.id === 'item-title-item-0');
+
+    expect(titleA).toBeDefined();
+    expect(titleB).toBeDefined();
+
+    // Since they use different layout families, their positioning coordinates should be different
+    expect(titleA!.x).not.toEqual(titleB!.x);
+    expect(titleA!.y).not.toEqual(titleB!.y);
   });
 });

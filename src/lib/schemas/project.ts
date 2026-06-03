@@ -262,7 +262,35 @@ export type LayoutElement = z.infer<typeof LayoutElementSchema>;
 // ==========================================
 // 7. Project Schema
 // ==========================================
-export const ProjectSchema = z.object({
+// ==========================================
+// 7. Project Schema
+// ==========================================
+export const PolishedBackgroundSchema = z.object({
+  assetId: z.string().nullable().default(null),
+  fitMode: z.enum(['cover', 'contain', 'stretch']).default('cover'),
+  offsetX: z.number().default(0),
+  offsetY: z.number().default(0),
+  scale: z.number().default(1),
+  opacity: z.number().min(0).max(1).default(1),
+  legibilityPreset: z.enum(['none', 'backing_plate', 'drop_shadow', 'text_outline']).default('none'),
+});
+
+export type PolishedBackground = z.infer<typeof PolishedBackgroundSchema>;
+
+export const LayoutVariantSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  layoutFamily: z.string(),
+  density: z.enum(['loose', 'normal', 'dense']),
+  elements: z.array(LayoutElementSchema),
+  score: z.number().min(0).max(100),
+  warnings: z.array(z.string()),
+  polishedBackground: PolishedBackgroundSchema.optional(),
+});
+
+export type LayoutVariant = z.infer<typeof LayoutVariantSchema>;
+
+const ProjectBaseSchema = z.object({
   schemaVersion: z.string().default('1.0.0'),
   id: z.string().uuid().or(z.string()),
   name: z.string().min(1, 'Project name is required'),
@@ -290,15 +318,7 @@ export const ProjectSchema = z.object({
       .array(z.enum(['png', 'pdf', 'svg']))
       .default(['png', 'pdf']),
   }),
-  polishedBackground: z.object({
-    assetId: z.string().nullable().default(null),
-    fitMode: z.enum(['cover', 'contain', 'stretch']).default('cover'),
-    offsetX: z.number().default(0),
-    offsetY: z.number().default(0),
-    scale: z.number().default(1),
-    opacity: z.number().min(0).max(1).default(1),
-    legibilityPreset: z.enum(['none', 'backing_plate', 'drop_shadow', 'text_outline']).default('none'),
-  }).default({
+  polishedBackground: PolishedBackgroundSchema.default({
     assetId: null,
     fitMode: 'cover',
     offsetX: 0,
@@ -315,7 +335,85 @@ export const ProjectSchema = z.object({
     .string()
     .datetime()
     .default(() => new Date().toISOString()),
+  layoutVariants: z.array(LayoutVariantSchema).default([]),
+  activeVariantId: z.string().uuid().nullable().default(null),
 });
+
+function generateUUID(): string {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+export const ProjectSchema = z.preprocess((val: unknown) => {
+  if (val && typeof val === 'object') {
+    const migrated = { ...(val as Record<string, unknown>) };
+    if ('variants' in migrated && migrated['variants'] && typeof migrated['variants'] === 'object' && !migrated['layoutVariants']) {
+      const layoutVariants: unknown[] = [];
+      let newActiveVariantId: string | null = null;
+      const keyToUuidMap = new Map<string, string>();
+      const variants = migrated['variants'] as Record<string, unknown>;
+
+      // First generate UUIDs and map them
+      for (const key of Object.keys(variants)) {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key);
+        const uuid = isUuid ? key : generateUUID();
+        keyToUuidMap.set(key, uuid);
+      }
+
+      for (const [key, variantProj] of Object.entries(variants)) {
+        if (variantProj && typeof variantProj === 'object') {
+          const vProj = variantProj as Record<string, unknown>;
+          const uuid = keyToUuidMap.get(key)!;
+          
+          const name = (vProj['name'] as string | undefined) || key || 'Unnamed Variant';
+          
+          const vProjLayout = (vProj['layout'] && typeof vProj['layout'] === 'object') ? (vProj['layout'] as Record<string, unknown>) : null;
+          const migratedLayout = (migrated['layout'] && typeof migrated['layout'] === 'object') ? (migrated['layout'] as Record<string, unknown>) : null;
+
+          const layoutFamily = (vProjLayout?.['layoutFamily'] as string | undefined) || (migratedLayout?.['layoutFamily'] as string | undefined) || 'inventory_board';
+          const density = (vProjLayout?.['density'] as string | undefined) || (migratedLayout?.['density'] as string | undefined) || 'normal';
+          const elements = (vProjLayout?.['elements'] as unknown[] | undefined) || (migratedLayout?.['elements'] as unknown[] | undefined) || [];
+          const score = typeof vProjLayout?.['score'] === 'number' ? vProjLayout['score'] : ((migratedLayout?.['score'] as number | undefined) ?? 100);
+          const warnings = (vProjLayout?.['warnings'] as string[] | undefined) || (migratedLayout?.['warnings'] as string[] | undefined) || [];
+          const polishedBackground = vProj['polishedBackground'] || migrated['polishedBackground'];
+
+          layoutVariants.push({
+            id: uuid,
+            name,
+            layoutFamily,
+            density,
+            elements,
+            score,
+            warnings,
+            polishedBackground,
+          });
+        }
+      }
+
+      migrated['layoutVariants'] = layoutVariants;
+      
+      const oldActiveId = migrated['activeVariantId'];
+      if (typeof oldActiveId === 'string') {
+        if (keyToUuidMap.has(oldActiveId)) {
+          newActiveVariantId = keyToUuidMap.get(oldActiveId)!;
+        } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(oldActiveId)) {
+          newActiveVariantId = oldActiveId;
+        }
+      }
+      migrated['activeVariantId'] = newActiveVariantId;
+      
+      delete migrated['variants'];
+    }
+    return migrated;
+  }
+  return val;
+}, ProjectBaseSchema);
 
 export type Project = z.infer<typeof ProjectSchema>;
 

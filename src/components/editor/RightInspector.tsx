@@ -68,9 +68,9 @@ export const RightInspector: React.FC = () => {
       useEditorStore.getState().addAsset(newAsset);
 
       updateProjectField('polishedBackground.assetId', newAsset.id);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to upload background:', err);
-      setUploadError(err.message || 'Failed to upload image. Please try again.');
+      setUploadError(err instanceof Error ? err.message : 'Failed to upload image. Please try again.');
     }
   };
 

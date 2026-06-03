@@ -33,7 +33,9 @@ export async function PUT(
 
     // Build the query clause. 
     // If not admin, the user can only update projects they own or that have no owner.
-    const whereClause: any = { id };
+    const whereClause: Prisma.ProjectWhereUniqueInput & {
+      OR?: Array<{ ownerId: string | null }>;
+    } = { id };
     if (userRole !== 'admin') {
       whereClause.OR = [
         { ownerId: userId },

@@ -111,6 +111,8 @@ export default async function DashboardPage() {
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      layoutVariants: [],
+      activeVariantId: null,
     };
 
     let created = false;

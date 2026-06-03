@@ -189,6 +189,8 @@ const mockProject: Project = {
   },
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+  layoutVariants: [],
+  activeVariantId: null,
 };
 
 const mockAssets: Asset[] = [

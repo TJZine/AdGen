@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Project, LayoutElement, Asset } from '../../lib/schemas/project';
+import { Project, Asset } from '../../lib/schemas/project';
 import { fitText } from '../../lib/layout/textFit';
 import { QRCodeImage } from './QRCodeImage';
 import { getElementText } from '../../lib/renderer/utils';

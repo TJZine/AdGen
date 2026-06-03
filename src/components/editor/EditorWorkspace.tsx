@@ -8,6 +8,7 @@ import { ContentTableMode } from './ContentTableMode';
 import { BackgroundRenderer } from '../renderer/BackgroundRenderer';
 import { OverlayRenderer } from '../renderer/OverlayRenderer';
 import { ContrastGuard } from './ContrastGuard';
+import { CanvasPreview } from '../renderer/CanvasPreview';
 import { Project, Asset } from '@/lib/schemas/project';
 
 interface EditorWorkspaceProps {
@@ -33,7 +34,42 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     undo,
     redo,
     saveProject,
+    layoutVariants,
+    activeVariantId,
+    comparisonVariantId,
+    createVariant,
+    duplicateVariant,
+    deleteVariant,
+    selectActiveVariant,
+    selectComparisonVariant,
+    applyVariantAsPrimary,
+    primaryLayout,
+    primaryPolishedBackground,
   } = useEditorStore();
+
+  const getProjectForVariant = (vId: string | null): Project => {
+    if (!vId) {
+      return {
+        ...project,
+        layout: primaryLayout,
+        polishedBackground: primaryPolishedBackground,
+      };
+    }
+    const variant = layoutVariants.find((v) => v.id === vId);
+    if (!variant) return project;
+    return {
+      ...project,
+      layout: {
+        ...project.layout,
+        layoutFamily: variant.layoutFamily,
+        density: variant.density,
+        elements: variant.elements,
+        score: variant.score,
+        warnings: variant.warnings,
+      },
+      polishedBackground: variant.polishedBackground || project.polishedBackground,
+    };
+  };
 
   const [mode, setMode] = useState<'content' | 'canvas'>('content');
 
@@ -190,33 +226,289 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
         {mode === 'content' ? (
           <ContentTableMode />
         ) : (
-          <div className="flex-1 overflow-auto bg-zinc-100 p-8 flex items-center justify-center">
-            {/* Aspect ratio-locked canvas preview with absolute scaling */}
+          <div className="flex-1 flex flex-col bg-zinc-100 overflow-hidden">
+            {/* Variant Toolbar */}
             <div
-              style={{
-                width: `${project.canvas.widthPx * numSlides * zoom}px`,
-                height: `${project.canvas.heightPx * zoom}px`,
-                position: 'relative',
-              }}
-              data-testid="canvas-preview-container"
-              className="transition-all duration-100 ease-out shrink-0"
+              data-testid="variant-toolbar"
+              className="h-12 bg-white border-b border-zinc-200 px-4 flex items-center justify-between shrink-0 gap-4 text-zinc-700 text-xs font-medium"
             >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: `${project.canvas.widthPx * numSlides}px`,
-                  height: `${project.canvas.heightPx}px`,
-                  transform: `scale(${zoom})`,
-                  transformOrigin: 'top left',
-                }}
-                className="shadow-2xl rounded overflow-hidden"
-              >
-                <BackgroundRenderer project={project} assets={assets} />
-                <OverlayRenderer project={project} />
-                <ContrastGuard project={project} assets={assets} />
+              {/* Left: Active Variant actions */}
+              <div className="flex items-center gap-3">
+                <span className="text-zinc-500 font-semibold select-none uppercase tracking-wider">Active Variant</span>
+                <select
+                  data-testid="active-variant-select"
+                  value={activeVariantId || 'primary'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    selectActiveVariant(val === 'primary' ? null : val);
+                  }}
+                  className="border border-zinc-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-zinc-500 cursor-pointer max-w-xs"
+                >
+                  <option value="primary">Primary Layout</option>
+                  {layoutVariants.map((variant) => (
+                    <option key={variant.id} value={variant.id}>
+                      {variant.name}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  data-testid="create-variant-btn"
+                  onClick={() => {
+                    const name = prompt('Enter variant name:', `Variant ${layoutVariants.length + 1}`);
+                    if (!name) return;
+                    createVariant(name, project.layout.layoutFamily, project.layout.density);
+                  }}
+                  disabled={layoutVariants.length >= 5}
+                  className="px-2.5 py-1 border border-zinc-300 rounded hover:bg-zinc-50 disabled:opacity-40 disabled:hover:bg-white text-zinc-700 bg-white font-semibold transition cursor-pointer"
+                  title="Create new variant"
+                >
+                  Create Variant
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="duplicate-variant-btn"
+                  onClick={() => {
+                    if (activeVariantId === null) {
+                      duplicateVariant(null);
+                    } else {
+                      duplicateVariant(activeVariantId);
+                    }
+                  }}
+                  disabled={layoutVariants.length >= 5}
+                  className="px-2.5 py-1 border border-zinc-300 rounded hover:bg-zinc-50 disabled:opacity-40 disabled:hover:bg-white transition cursor-pointer text-zinc-700 bg-white font-semibold"
+                  title="Duplicate active variant"
+                >
+                  Duplicate
+                </button>
+
+                <button
+                  type="button"
+                  data-testid="delete-variant-btn"
+                  onClick={() => {
+                    if (activeVariantId) {
+                      deleteVariant(activeVariantId);
+                    }
+                  }}
+                  disabled={!activeVariantId}
+                  className="px-2.5 py-1 border border-zinc-300 rounded hover:bg-zinc-50 disabled:opacity-40 disabled:hover:bg-white text-rose-600 transition cursor-pointer bg-white font-semibold"
+                  title="Delete active variant"
+                >
+                  Delete
+                </button>
+
+                {activeVariantId && (
+                  <button
+                    type="button"
+                    data-testid="apply-primary-btn"
+                    onClick={() => applyVariantAsPrimary(activeVariantId)}
+                    className="px-2.5 py-1 border border-zinc-300 rounded hover:bg-zinc-50 transition cursor-pointer text-emerald-600 bg-white font-semibold"
+                    title="Apply active variant layout as the primary project layout"
+                  >
+                    Apply as Primary
+                  </button>
+                )}
               </div>
+
+              {/* Right: Variant Comparison */}
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    data-testid="compare-variants-checkbox"
+                    checked={comparisonVariantId !== null}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      if (checked) {
+                        const other = layoutVariants.find((v) => v.id !== activeVariantId) || layoutVariants[0];
+                        selectComparisonVariant(other ? other.id : null);
+                      } else {
+                        selectComparisonVariant(null);
+                      }
+                    }}
+                    className="rounded border-zinc-300 text-zinc-950 focus:ring-zinc-500 cursor-pointer"
+                  />
+                  <span>Compare Variants</span>
+                </label>
+
+                {comparisonVariantId !== null && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400 font-semibold select-none">A:</span>
+                    <select
+                      data-testid="compare-variant-a-select"
+                      value={activeVariantId || 'primary'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        selectActiveVariant(val === 'primary' ? null : val);
+                      }}
+                      className="border border-zinc-300 rounded px-1.5 py-1 bg-white focus:outline-none cursor-pointer max-w-[120px]"
+                    >
+                      <option value="primary">Primary Layout</option>
+                      {layoutVariants.map((variant) => (
+                        <option key={variant.id} value={variant.id}>
+                          {variant.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    <span className="text-zinc-400 font-semibold select-none">B:</span>
+                    <select
+                      data-testid="compare-variant-b-select"
+                      value={comparisonVariantId || 'primary'}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        selectComparisonVariant(val === 'primary' ? null : val);
+                      }}
+                      className="border border-zinc-300 rounded px-1.5 py-1 bg-white focus:outline-none cursor-pointer max-w-[120px]"
+                    >
+                      <option value="primary">Primary Layout</option>
+                      {layoutVariants.map((variant) => (
+                        <option key={variant.id} value={variant.id}>
+                          {variant.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Canvas Scrollable Area */}
+            <div className="flex-1 overflow-auto p-8 flex items-center justify-center">
+              {comparisonVariantId !== null ? (
+                /* Comparison split screen layout */
+                <div
+                  data-testid="compare-split-container"
+                  className="flex gap-8 items-start justify-center min-w-max p-4"
+                >
+                  {/* Left Panel */}
+                  <div
+                    data-testid="left-viewport-panel"
+                    onClick={() => selectActiveVariant(activeVariantId)}
+                    className="p-4 rounded-xl border border-blue-500 bg-white shadow-md flex flex-col items-center cursor-pointer transition ring-2 ring-blue-500/20"
+                  >
+                    {/* Header & Select Wrapper */}
+                    <div className="w-full flex flex-col gap-1 mb-3 select-none">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                        Left Viewport Layout
+                      </label>
+                      <select
+                        data-testid="left-viewport-select"
+                        value={activeVariantId || 'primary'}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const targetId = val === 'primary' ? null : val;
+                          if (targetId === comparisonVariantId) {
+                            const prevActive = activeVariantId;
+                            selectActiveVariant(targetId);
+                            selectComparisonVariant(prevActive);
+                          } else {
+                            selectActiveVariant(targetId);
+                          }
+                        }}
+                        className="border border-zinc-200 bg-white rounded-lg px-3 py-2 text-xs text-zinc-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer w-full transition"
+                      >
+                        <option value="primary">Primary Layout</option>
+                        {layoutVariants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Canvas Preview Wrapper */}
+                    <div className="p-2 border border-zinc-100 rounded-lg bg-zinc-50/50 shadow-inner flex items-center justify-center">
+                      <CanvasPreview
+                        project={getProjectForVariant(activeVariantId)}
+                        assets={assets}
+                        zoom={zoom}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Panel */}
+                  <div
+                    data-testid="right-viewport-panel"
+                    onClick={() => {
+                      const prevActive = activeVariantId;
+                      const prevComparison = comparisonVariantId;
+                      selectActiveVariant(prevComparison);
+                      selectComparisonVariant(prevActive);
+                    }}
+                    className="p-4 rounded-xl border border-zinc-200 bg-white shadow-sm flex flex-col items-center cursor-pointer transition hover:border-zinc-300 hover:shadow-md"
+                  >
+                    {/* Header & Select Wrapper */}
+                    <div className="w-full flex flex-col gap-1 mb-3 select-none">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+                        Right Viewport Layout
+                      </label>
+                      <select
+                        data-testid="right-viewport-select"
+                        value={comparisonVariantId || 'primary'}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const targetId = val === 'primary' ? null : val;
+                          if (targetId === activeVariantId) {
+                            const prevComparison = comparisonVariantId;
+                            selectComparisonVariant(targetId);
+                            selectActiveVariant(prevComparison);
+                          } else {
+                            selectComparisonVariant(targetId);
+                          }
+                        }}
+                        className="border border-zinc-200 bg-white rounded-lg px-3 py-2 text-xs text-zinc-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm cursor-pointer w-full transition"
+                      >
+                        <option value="primary">Primary Layout</option>
+                        {layoutVariants.map((variant) => (
+                          <option key={variant.id} value={variant.id}>
+                            {variant.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* Canvas Preview Wrapper */}
+                    <div className="p-2 border border-zinc-100 rounded-lg bg-zinc-50/50 shadow-inner flex items-center justify-center">
+                      <CanvasPreview
+                        project={getProjectForVariant(comparisonVariantId)}
+                        assets={assets}
+                        zoom={zoom}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Aspect ratio-locked canvas preview with absolute scaling */
+                <div
+                  style={{
+                    width: `${project.canvas.widthPx * numSlides * zoom}px`,
+                    height: `${project.canvas.heightPx * zoom}px`,
+                    position: 'relative',
+                  }}
+                  data-testid="canvas-preview-container"
+                  className="transition-all duration-100 ease-out shrink-0"
+                >
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: `${project.canvas.widthPx * numSlides}px`,
+                      height: `${project.canvas.heightPx}px`,
+                      transform: `scale(${zoom})`,
+                      transformOrigin: 'top left',
+                    }}
+                    className="shadow-2xl rounded overflow-hidden"
+                  >
+                    <BackgroundRenderer project={project} assets={assets} />
+                    <OverlayRenderer project={project} />
+                    <ContrastGuard project={project} assets={assets} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

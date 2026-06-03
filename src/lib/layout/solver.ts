@@ -1,15 +1,31 @@
-import { Project, LayoutElement, Item, Section } from '../schemas/project';
+import { Project, LayoutElement, Item, Section, LayoutVariant } from '../schemas/project';
 import { fitText } from './textFit';
 import { evaluateLayout } from '../validation/rules';
 
 /**
  * Solve layout calculations for the AdGen flyer using layout-family-specific solver functions.
  */
-export function solveLayout(project: Project): { elements: LayoutElement[]; score: number; warnings: string[] } {
+export function solveLayout(
+  project: Project,
+  variantOverride?: LayoutVariant
+): { elements: LayoutElement[]; score: number; warnings: string[] } {
+  const activeProject = variantOverride
+    ? {
+        ...project,
+        layout: {
+          ...project.layout,
+          layoutFamily: variantOverride.layoutFamily,
+          density: variantOverride.density,
+          elements: variantOverride.elements,
+        },
+        polishedBackground: variantOverride.polishedBackground || project.polishedBackground,
+      }
+    : project;
+
   const elements: LayoutElement[] = [];
 
   const resolveElement = (el: LayoutElement): LayoutElement => {
-    const existing = project.layout?.elements?.find((x) => x.id === el.id);
+    const existing = activeProject.layout?.elements?.find((x) => x.id === el.id);
     if (existing && existing.locked) {
       return {
         ...el,
@@ -36,29 +52,29 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
   const textFitResults: Array<{ text: string; fontSize: number; isTruncated: boolean }> = [];
   const cardsToEvaluate: Array<{ sectionTitle: string; width: number; height: number }> = [];
 
-  const family = project.layout?.layoutFamily || 'inventory_board';
+  const family = activeProject.layout?.layoutFamily || 'inventory_board';
 
   switch (family) {
     case 'hero_grid':
-      solveHeroGrid(project, elements, textFitResults, cardsToEvaluate);
+      solveHeroGrid(activeProject, elements, textFitResults, cardsToEvaluate);
       break;
     case 'menu_listing':
-      solveMenuListing(project, elements, textFitResults, cardsToEvaluate);
+      solveMenuListing(activeProject, elements, textFitResults, cardsToEvaluate);
       break;
     case 'comparison_chart':
-      solveComparisonChart(project, elements, textFitResults, cardsToEvaluate);
+      solveComparisonChart(activeProject, elements, textFitResults, cardsToEvaluate);
       break;
     case 'social_carousel':
-      solveSocialCarousel(project, elements, textFitResults, cardsToEvaluate);
+      solveSocialCarousel(activeProject, elements, textFitResults, cardsToEvaluate);
       break;
     case 'inventory_board':
     default:
-      solveInventoryBoard(project, elements, textFitResults, cardsToEvaluate);
+      solveInventoryBoard(activeProject, elements, textFitResults, cardsToEvaluate);
       break;
   }
 
   // Preserve and add special elements (QR Codes & AI Instruction Zones)
-  const existingSpecialElements = (project.layout?.elements || []).filter(
+  const existingSpecialElements = (activeProject.layout?.elements || []).filter(
     (el) => el.type === 'qr_code' || el.type === 'ai_instruction_zone'
   );
 
@@ -70,12 +86,12 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
   });
 
   const hasQrCode = elements.some((e) => e.type === 'qr_code');
-  if (project.brand.website && !hasQrCode) {
+  if (activeProject.brand.website && !hasQrCode) {
     const qrSize = 120;
     const footerEl = elements.find((e) => e.type === 'footer');
-    const safeMargin = project.canvas.safeMarginPx;
-    const defaultX = project.canvas.widthPx - safeMargin - qrSize;
-    let defaultY = project.canvas.heightPx - safeMargin - qrSize;
+    const safeMargin = activeProject.canvas.safeMarginPx;
+    const defaultX = activeProject.canvas.widthPx - safeMargin - qrSize;
+    let defaultY = activeProject.canvas.heightPx - safeMargin - qrSize;
     if (footerEl) {
       defaultY = Math.max(safeMargin, footerEl.y - qrSize - 10);
     }
@@ -94,15 +110,15 @@ export function solveLayout(project: Project): { elements: LayoutElement[]; scor
   }
 
   // Determine total bounds width (multiple pages for social carousel)
-  const numSlides = family === 'social_carousel' ? calculateSocialCarouselSlides(project) : 1;
+  const numSlides = family === 'social_carousel' ? calculateSocialCarouselSlides(activeProject) : 1;
 
   // Evaluate score and constraints
   const { score, warnings } = evaluateLayout(
     elements,
     cardsToEvaluate,
     textFitResults,
-    project.canvas.widthPx * numSlides,
-    project.canvas.heightPx
+    activeProject.canvas.widthPx * numSlides,
+    activeProject.canvas.heightPx
   );
 
   return {

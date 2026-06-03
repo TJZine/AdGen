@@ -150,6 +150,8 @@ const mockProject: Project = {
   },
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
+  layoutVariants: [],
+  activeVariantId: null,
 };
 
 const mockAssets: Asset[] = [
@@ -400,6 +402,106 @@ describe('Zustand Editor Store', () => {
     expect(updatedElement!.y).toBe(targetY);
     expect(updatedElement!.locked).toBe(true);
     expect(state.undoStack).toHaveLength(2);
+  });
+
+  it('should initialize layoutVariants and activeVariantId in setProject if missing', () => {
+    const store = useEditorStore.getState();
+    const cleanProject = {
+      ...mockProject,
+      layoutVariants: undefined,
+      activeVariantId: undefined,
+    } as unknown as Project;
+
+    store.setProject(cleanProject, mockAssets);
+    const state = useEditorStore.getState();
+    expect(state.activeVariantId).toBeNull();
+    expect(state.layoutVariants).toEqual([]);
+  });
+
+  it('should support creating, duplicating, deleting and applying variants', () => {
+    const store = useEditorStore.getState();
+    store.setProject(mockProject, mockAssets);
+
+    // Create a variant
+    store.createVariant('Variant A', 'inventory_board', 'dense');
+    let state = useEditorStore.getState();
+    expect(state.layoutVariants).toHaveLength(1);
+    const variantA = state.layoutVariants[0];
+    expect(variantA.name).toBe('Variant A');
+    expect(variantA.density).toBe('dense');
+
+    // Duplicate variant
+    store.duplicateVariant(variantA.id);
+    state = useEditorStore.getState();
+    expect(state.layoutVariants).toHaveLength(2);
+    const duplicate = state.layoutVariants.find((v) => v.id !== variantA.id);
+    expect(duplicate).toBeDefined();
+    expect(duplicate!.name).toBe('Variant A (Copy)');
+
+    // Select active variant
+    store.selectActiveVariant(variantA.id);
+    state = useEditorStore.getState();
+    expect(state.activeVariantId).toBe(variantA.id);
+    expect(state.project.layout.density).toBe('dense');
+
+    // Apply active variant as primary
+    store.applyVariantAsPrimary(variantA.id);
+    state = useEditorStore.getState();
+    expect(state.primaryLayout.density).toBe('dense');
+    expect(state.activeVariantId).toBeNull();
+
+    // Delete variant
+    store.deleteVariant(variantA.id);
+    state = useEditorStore.getState();
+    expect(state.layoutVariants).toHaveLength(1);
+    expect(state.layoutVariants[0].name).toBe('Variant A (Copy)');
+  });
+
+  it('should duplicate the primary layout when duplicateVariant(null) is called', () => {
+    useEditorStore.getState().setProject(mockProject, mockAssets);
+
+    let state = useEditorStore.getState();
+    // Initial state: no variant, activeVariantId is null
+    expect(state.activeVariantId).toBeNull();
+    expect(state.layoutVariants).toHaveLength(0);
+
+    // Set some custom values on primary layout to verify duplicate uses them
+    useEditorStore.setState({
+      primaryLayout: {
+        ...mockProject.layout,
+        layoutFamily: 'inventory_board',
+        density: 'dense',
+        elements: [{ id: 'el-1', type: 'text', contentRef: 'headline', x: 10, y: 20, width: 100, height: 50, locked: false, style: {} }],
+        warnings: ['Some warning'],
+      },
+    });
+
+    // Call duplicateVariant(null)
+    useEditorStore.getState().duplicateVariant(null);
+    state = useEditorStore.getState();
+
+    // Verify duplicate is created
+    expect(state.layoutVariants).toHaveLength(1);
+    const duplicated = state.layoutVariants[0];
+    expect(duplicated.name).toBe('Primary Layout (Copy)');
+    expect(duplicated.layoutFamily).toBe('inventory_board');
+    expect(duplicated.density).toBe('dense');
+    expect(duplicated.elements).toHaveLength(1);
+    expect(duplicated.elements[0].id).toBe('el-1');
+    expect(duplicated.warnings).toContain('Some warning');
+  });
+
+  it('should set comparisonVariantId for compare mode', () => {
+    const store = useEditorStore.getState();
+    expect(store.comparisonVariantId).toBeNull();
+
+    store.selectComparisonVariant('variant-a');
+    let state = useEditorStore.getState();
+    expect(state.comparisonVariantId).toBe('variant-a');
+
+    store.selectComparisonVariant(null);
+    state = useEditorStore.getState();
+    expect(state.comparisonVariantId).toBeNull();
   });
 });
 
