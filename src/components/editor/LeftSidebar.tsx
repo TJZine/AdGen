@@ -4,6 +4,7 @@ import React from 'react';
 import { useEditorStore } from '@/lib/store/editorStore';
 import { autoSuggestLayout } from '@/lib/layout/solver';
 import { parseSpreadsheet } from '@/lib/utils/csv';
+import { Section, Item, Asset } from '@/lib/schemas/project';
 
 export const CANVAS_PRESETS = [
   {
@@ -45,10 +46,13 @@ export const CANVAS_PRESETS = [
 ];
 
 export const LeftSidebar: React.FC = () => {
-  const { project, updateProjectField } = useEditorStore();
+  const { project, assets, updateProjectField } = useEditorStore();
   const { canvas, brand, layout } = project;
   const [activeTab, setActiveTab] = React.useState<'settings' | 'layouts' | 'import'>('settings');
   const [importText, setImportText] = React.useState('');
+  const [isDragOverFileZone, setIsDragOverFileZone] = React.useState(false);
+  const [isUploadingImages, setIsUploadingImages] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handlePresetChange = (presetId: string) => {
     const preset = CANVAS_PRESETS.find((p) => p.id === presetId);
@@ -125,6 +129,153 @@ export const LeftSidebar: React.FC = () => {
       setImportText('');
     } else {
       alert('Failed to parse any sections. Please ensure your data is in CSV or TSV format and contains a "title" column.');
+    }
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    setImportText(pastedText);
+    
+    const { sections } = parseSpreadsheet(pastedText);
+    if (sections && sections.length > 0) {
+      updateProjectField('content.sections', sections);
+    } else {
+      alert('Failed to parse pasted data. Please check the CSV/TSV format.');
+    }
+  };
+
+  const handleFileDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOverFileZone(false);
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      await processUploadedFile(files[0]);
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      await processUploadedFile(files[0]);
+    }
+  };
+
+  const processUploadedFile = (file: File): Promise<void> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      const fileName = file.name.toLowerCase();
+      
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (!text) {
+          alert("Could not read file content.");
+          resolve();
+          return;
+        }
+
+        try {
+          if (fileName.endsWith('.json')) {
+            const parsed = JSON.parse(text);
+            const sanitizedSections = validateAndSanitizeSections(parsed);
+            updateProjectField('content.sections', sanitizedSections);
+            alert(`Successfully imported ${sanitizedSections.length} sections from JSON.`);
+          } else if (fileName.endsWith('.csv') || fileName.endsWith('.tsv') || fileName.endsWith('.txt')) {
+            const { sections } = parseSpreadsheet(text);
+            if (sections && sections.length > 0) {
+              updateProjectField('content.sections', sections);
+              alert(`Successfully imported ${sections.length} sections from CSV/TSV.`);
+            } else {
+              alert("Failed to parse CSV/TSV. Ensure it has a header row and 'title' column.");
+            }
+          } else {
+            alert("Unsupported file format. Please upload .json, .csv, or .tsv files.");
+          }
+        } catch (err: unknown) {
+          alert(`Error importing file: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        resolve();
+      };
+
+      reader.onerror = () => {
+        alert("Failed to read file.");
+        resolve();
+      };
+
+      reader.readAsText(file);
+    });
+  };
+
+  const handleBulkImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsUploadingImages(true);
+    const formData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      formData.append('file', files[i]);
+    }
+
+    try {
+      const res = await fetch('/api/upload?bulk=true', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || 'Bulk upload failed');
+      }
+
+      interface UploadedAsset {
+        id: string;
+        name: string;
+        type: string;
+        filePath: string;
+        thumbnailPath?: string | null;
+        mimeType?: string;
+        mime?: string;
+        sizeBytes?: number;
+        size?: number;
+        width?: number | null;
+        height?: number | null;
+        focalPointX?: number | null;
+        focalPointY?: number | null;
+        createdAt: string | number | Date;
+        updatedAt: string | number | Date;
+      }
+
+      const uploadedAssets = await res.json();
+      
+      const formattedAssets: Asset[] = (Array.isArray(uploadedAssets) ? uploadedAssets : [uploadedAssets]).map((a: UploadedAsset) => ({
+        id: a.id,
+        name: a.name,
+        type: (['image', 'logo', 'font'].includes(a.type) ? a.type : 'image') as Asset['type'],
+        filePath: a.filePath,
+        thumbnailPath: a.thumbnailPath || null,
+        mimeType: a.mimeType || a.mime || 'image/png',
+        sizeBytes: a.sizeBytes || a.size || 0,
+        dimensions: a.width && a.height ? { width: a.width, height: a.height } : null,
+        focalPoint: {
+          x: typeof a.focalPointX === 'number' ? a.focalPointX : 0.5,
+          y: typeof a.focalPointY === 'number' ? a.focalPointY : 0.5,
+        },
+        createdAt: typeof a.createdAt === 'string' ? a.createdAt : new Date(a.createdAt).toISOString(),
+        updatedAt: typeof a.updatedAt === 'string' ? a.updatedAt : new Date(a.updatedAt).toISOString(),
+      }));
+
+      useEditorStore.setState((state) => ({
+        assets: [...state.assets, ...formattedAssets],
+      }));
+
+      alert(`Successfully uploaded ${formattedAssets.length} image(s).`);
+    } catch (err: unknown) {
+      console.error('Failed to upload images:', err);
+      alert(`Upload failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsUploadingImages(false);
+      e.target.value = '';
     }
   };
 
@@ -361,33 +512,240 @@ export const LeftSidebar: React.FC = () => {
 
       {/* Import Tab */}
       {activeTab === 'import' && (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
+          {/* 1. Drag & Drop File Import Zone */}
           <div className="flex flex-col gap-1.5">
-            <label className="font-semibold text-zinc-950">CSV / TSV Import</label>
-            <span className="text-xs text-zinc-500">
-              Paste your spreadsheet rows below. The first row should contain headers (e.g., Section, Title, Price, Description).
-            </span>
+            <label className="font-semibold text-zinc-950">File Import (CSV or JSON)</label>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOverFileZone(true);
+              }}
+              onDragLeave={() => setIsDragOverFileZone(false)}
+              onDrop={handleFileDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition ${
+                isDragOverFileZone
+                  ? 'border-zinc-950 bg-zinc-100/50'
+                  : 'border-zinc-300 bg-zinc-50 hover:bg-zinc-100/50 hover:border-zinc-400'
+              }`}
+              data-testid="file-dropzone"
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,.tsv,.json"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <svg className="w-8 h-8 text-zinc-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span className="text-xs font-medium text-zinc-700 block">
+                Drag & drop a JSON or CSV/TSV file here
+              </span>
+              <span className="text-[10px] text-zinc-500 block mt-1">
+                or click to browse from your device
+              </span>
+            </div>
           </div>
 
-          <textarea
-            data-testid="import-textarea"
-            value={importText}
-            onChange={(e) => setImportText(e.target.value)}
-            placeholder={`Section, Title, Price, Description\nAppetizers, Garlic Bread, 5.99, Toasted with garlic and butter\nAppetizers, Cheese Sticks, 7.99, Mozzarella cheese sticks`}
-            className="w-full h-64 border border-zinc-300 rounded p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-zinc-950 resize-none bg-white"
-          />
+          <hr className="border-zinc-200" />
 
-          <button
-            type="button"
-            data-testid="import-submit-btn"
-            onClick={handleImport}
-            disabled={!importText.trim()}
-            className="w-full bg-zinc-950 hover:bg-zinc-800 disabled:opacity-50 text-white rounded py-2 text-xs font-semibold uppercase tracking-wider transition cursor-pointer"
-          >
-            Parse & Import Data
-          </button>
+          {/* 2. Clipboard Paste Parser */}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="font-semibold text-zinc-950">Clipboard Paste Parser</label>
+              <span className="text-xs text-zinc-500">
+                Paste spreadsheet rows (CSV/TSV format) copied from Google Sheets or Excel directly into the text area below.
+              </span>
+            </div>
+
+            <textarea
+              data-testid="import-textarea"
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              onPaste={handlePaste}
+              placeholder={`Section, Title, Price, Description\nAppetizers, Garlic Bread, 5.99, Toasted with garlic and butter\nAppetizers, Cheese Sticks, 7.99, Mozzarella cheese sticks`}
+              className="w-full h-32 border border-zinc-300 rounded p-3 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-zinc-950 resize-none bg-white"
+            />
+
+            <button
+              type="button"
+              data-testid="import-submit-btn"
+              onClick={handleImport}
+              disabled={!importText.trim()}
+              className="w-full bg-zinc-950 hover:bg-zinc-800 disabled:opacity-50 text-white rounded py-2 text-xs font-semibold uppercase tracking-wider transition cursor-pointer"
+            >
+              Parse & Import Data
+            </button>
+          </div>
+
+          <hr className="border-zinc-200" />
+
+          {/* 3. Bulk Image Uploader */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-zinc-950">Bulk Image Uploader</label>
+            <span className="text-xs text-zinc-500">
+              Upload multiple images concurrently to populate the gallery.
+            </span>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              disabled={isUploadingImages}
+              onChange={handleBulkImageUpload}
+              className="text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-zinc-100 file:text-zinc-700 hover:file:bg-zinc-200 disabled:opacity-50 cursor-pointer"
+              data-testid="bulk-file-upload"
+            />
+            {isUploadingImages && (
+              <span className="text-xs text-zinc-500 italic">Uploading images, please wait...</span>
+            )}
+          </div>
+
+          <hr className="border-zinc-200" />
+
+          {/* 4. Visual Asset Gallery */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-zinc-950">Visual Asset Gallery</label>
+            <span className="text-xs text-zinc-500">
+              Drag an image asset from here and drop it onto any item row in the content table.
+            </span>
+            {assets.length === 0 ? (
+              <div className="border border-zinc-200 rounded p-4 text-center text-zinc-400 text-xs bg-zinc-50">
+                No assets uploaded yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2 border border-zinc-200 rounded p-3 bg-zinc-50 max-h-60 overflow-y-auto">
+                {assets.map((asset) => (
+                  <div
+                    key={asset.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', asset.id);
+                      e.dataTransfer.setData('asset-id', asset.id);
+                      e.dataTransfer.effectAllowed = 'copy';
+                    }}
+                    className="relative group aspect-square border border-zinc-300 rounded overflow-hidden bg-white cursor-grab active:cursor-grabbing hover:border-zinc-500 transition flex items-center justify-center"
+                    title={asset.name}
+                    data-testid={`gallery-asset-${asset.id}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={asset.filePath}
+                      alt={asset.name}
+                      className="w-full h-full object-cover pointer-events-none"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center p-1 text-[10px] text-white text-center break-all select-none">
+                      {asset.name}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </aside>
   );
+};
+
+interface RawLayoutHints {
+  cardSize?: string;
+  imageFit?: string;
+  preferredAspectRatio?: string;
+}
+
+interface RawItem {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  description?: string;
+  price?: number | null;
+  priceDisplay?: string;
+  salePrice?: number | null;
+  badge?: string | null;
+  imageAssetId?: string | null;
+  priority?: string;
+  visibility?: string;
+  layoutHints?: RawLayoutHints | null;
+  metadata?: { tags?: string[] } | null;
+}
+
+interface RawSection {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  priority?: string;
+  layoutHint?: string;
+  order?: number;
+  items?: RawItem[];
+}
+
+const validateAndSanitizeSections = (parsedData: unknown): Section[] => {
+  let rawSections: RawSection[] = [];
+  if (Array.isArray(parsedData)) {
+    rawSections = parsedData as RawSection[];
+  } else if (parsedData && typeof parsedData === 'object') {
+    const dataObj = parsedData as Record<string, unknown>;
+    if (Array.isArray(dataObj.sections)) {
+      rawSections = dataObj.sections as RawSection[];
+    } else if (
+      dataObj.content &&
+      typeof dataObj.content === 'object' &&
+      Array.isArray((dataObj.content as Record<string, unknown>).sections)
+    ) {
+      rawSections = (dataObj.content as Record<string, unknown>).sections as RawSection[];
+    } else {
+      throw new Error("Invalid JSON structure. Must be an array of sections or an object containing a 'sections' array.");
+    }
+  } else {
+    throw new Error("Invalid JSON structure. Must be an array of sections or an object containing a 'sections' array.");
+  }
+
+  const generateId = () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+
+  return rawSections.map((sec: RawSection, secIdx: number) => {
+    if (!sec || typeof sec !== 'object' || !sec.title) {
+      throw new Error("Each section must be an object with a 'title' field.");
+    }
+    const sectionId = sec.id || generateId();
+    const items = Array.isArray(sec.items) ? sec.items : [];
+
+    const sanitizedItems: Item[] = items.map((item: RawItem) => {
+      if (!item || typeof item !== 'object' || !item.title) {
+        throw new Error("Each item must be an object with a 'title' field.");
+      }
+      return {
+        id: item.id || generateId(),
+        sectionId: sectionId,
+        title: String(item.title),
+        subtitle: String(item.subtitle || ''),
+        description: String(item.description || ''),
+        price: typeof item.price === 'number' ? item.price : null,
+        priceDisplay: item.priceDisplay !== undefined ? String(item.priceDisplay) : '',
+        salePrice: typeof item.salePrice === 'number' ? item.salePrice : null,
+        badge: item.badge ? String(item.badge) : null,
+        imageAssetId: item.imageAssetId ? String(item.imageAssetId) : null,
+        priority: (item.priority && ['hero', 'featured', 'normal', 'compact'].includes(item.priority) ? item.priority : 'normal') as Item['priority'],
+        visibility: (item.visibility && ['visible', 'hidden'].includes(item.visibility) ? item.visibility : 'visible') as Item['visibility'],
+        layoutHints: {
+          cardSize: item.layoutHints?.cardSize && ['normal', 'compact', 'wide'].includes(item.layoutHints.cardSize) ? (item.layoutHints.cardSize as Item['layoutHints']['cardSize']) : 'normal',
+          imageFit: item.layoutHints?.imageFit && ['contain', 'cover', 'crop', 'transparent', 'full_bleed'].includes(item.layoutHints.imageFit) ? (item.layoutHints.imageFit as Item['layoutHints']['imageFit']) : 'contain',
+          preferredAspectRatio: item.layoutHints?.preferredAspectRatio ? String(item.layoutHints.preferredAspectRatio) : '4:3',
+        },
+        metadata: item.metadata && typeof item.metadata === 'object' ? item.metadata : { tags: [] }
+      };
+    });
+
+    return {
+      id: sectionId,
+      title: String(sec.title),
+      subtitle: String(sec.subtitle || ''),
+      priority: (sec.priority && ['high', 'normal', 'low'].includes(sec.priority) ? sec.priority : 'normal') as Section['priority'],
+      layoutHint: (sec.layoutHint && ['grid', 'list', 'featured_hero'].includes(sec.layoutHint) ? sec.layoutHint : 'grid') as Section['layoutHint'],
+      order: typeof sec.order === 'number' ? sec.order : secIdx,
+      items: sanitizedItems
+    };
+  });
 };

@@ -162,6 +162,12 @@ export async function renderLayoutPng(
         timeout: 10000,
       });
 
+      const hasQrCode = projectResult.data.layout?.elements?.some((el: { type: string }) => el.type === 'qr_code') || 
+                        solveLayout(projectResult.data).elements.some((el: { type: string }) => el.type === 'qr_code');
+      if (hasQrCode) {
+        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+      }
+
       // 7. Take PNG screenshot of the canvas element specifically
       const pngBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
         type: 'png',
@@ -229,6 +235,9 @@ export async function renderLayoutImages(
         process.env.NEXT_PUBLIC_APP_URL ||
         'http://localhost:3000';
 
+      const hasQrCode = projectResult.data.layout?.elements?.some((el: { type: string }) => el.type === 'qr_code') || 
+                        solveLayout(projectResult.data).elements.some((el: { type: string }) => el.type === 'qr_code');
+
       // 1. Render and capture full layout
       const urlFull = `${baseUrl}/render-canvas?id=${projectId}&mode=full`;
       await page.goto(urlFull, { waitUntil: 'networkidle' });
@@ -237,6 +246,9 @@ export async function renderLayoutImages(
         state: 'visible',
         timeout: 10000,
       });
+      if (hasQrCode) {
+        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+      }
       const fullBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
         type: 'png',
       });
@@ -249,6 +261,9 @@ export async function renderLayoutImages(
         state: 'visible',
         timeout: 10000,
       });
+      if (hasQrCode) {
+        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+      }
       const bgBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
         type: 'png',
       });
@@ -337,6 +352,12 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
         state: 'visible',
         timeout: 10000,
       });
+
+      const hasQrCode = projectResult.data.layout?.elements?.some((el: { type: string }) => el.type === 'qr_code') || 
+                        solveLayout(projectResult.data).elements.some((el: { type: string }) => el.type === 'qr_code');
+      if (hasQrCode) {
+        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+      }
 
       // 7. Take PNG screenshot of the canvas element specifically, omitting background for transparency
       const pngBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({

@@ -55,6 +55,14 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [tempCoords, setTempCoords] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
 
+  const [isRenderCanvas, setIsRenderCanvas] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.pathname.includes('/render-canvas')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsRenderCanvas(true);
+    }
+  }, []);
+
   const handleElementMouseDown = (e: React.MouseEvent, el: LayoutElement) => {
     e.stopPropagation();
     selectElement(el.id);
@@ -336,7 +344,6 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
         }
 
         if (el.type === 'ai_instruction_zone') {
-          const isRenderCanvas = typeof window !== 'undefined' && window.location.pathname.includes('/render-canvas');
           if (isRenderCanvas) return null;
 
           return (

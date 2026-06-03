@@ -72,6 +72,8 @@ const SortableItemRow = React.memo<ItemRowProps>(({ item }) => {
   const selectElement = useEditorStore((s) => s.selectElement);
   const isSelected = useEditorStore((s) => s.selectedElementId === item.id);
   
+  const [isDragOver, setIsDragOver] = React.useState(false);
+
   const {
     attributes,
     listeners,
@@ -97,14 +99,40 @@ const SortableItemRow = React.memo<ItemRowProps>(({ item }) => {
     }
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const assetId = e.dataTransfer.getData('text/plain') || e.dataTransfer.getData('asset-id');
+    if (assetId) {
+      updateItem(item.id, { imageAssetId: assetId });
+    }
+  };
+
   return (
     <tr
       ref={setNodeRef}
       style={style}
       onClick={() => selectElement(item.id)}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       className={`border-b border-zinc-100 transition hover:bg-zinc-50 cursor-pointer ${
         isSelected ? 'bg-zinc-100 hover:bg-zinc-100 font-medium' : ''
-      }`}
+      } ${isDragOver ? 'bg-zinc-200 ring-2 ring-zinc-500 border-dashed' : ''}`}
     >
       {/* Drag Handle */}
       <td className="p-3 w-10 text-center" {...attributes} {...listeners}>
