@@ -54,6 +54,11 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
 
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [tempCoords, setTempCoords] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const tempCoordsRef = React.useRef(tempCoords);
+
+  useEffect(() => {
+    tempCoordsRef.current = tempCoords;
+  }, [tempCoords]);
 
   const [isRenderCanvas, setIsRenderCanvas] = useState(false);
   useEffect(() => {
@@ -125,8 +130,11 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
         const calculatedX = dragState.startElementX + dx;
         const calculatedY = dragState.startElementY + dy;
 
-        const newX = Math.max(safeMarginPx, Math.min(canvas.widthPx - safeMarginPx - dragState.startElementW, calculatedX));
-        const newY = Math.max(safeMarginPx, Math.min(canvas.heightPx - safeMarginPx - dragState.startElementH, calculatedY));
+        const limitX = Math.max(safeMarginPx, canvas.widthPx - safeMarginPx - dragState.startElementW);
+        const newX = Math.max(safeMarginPx, Math.min(limitX, calculatedX));
+
+        const limitY = Math.max(safeMarginPx, canvas.heightPx - safeMarginPx - dragState.startElementH);
+        const newY = Math.max(safeMarginPx, Math.min(limitY, calculatedY));
 
         setTempCoords({
           x: newX,
@@ -146,45 +154,37 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
           const targetX = dragState.startElementX + dx;
           const targetY = dragState.startElementY + dy;
 
-          newX = Math.max(safeMarginPx, targetX);
-          newW = Math.max(120, dragState.startElementW - (newX - dragState.startElementX));
-          if (newW === 120) {
-            newX = dragState.startElementX + dragState.startElementW - 120;
-          }
+          newX = Math.max(safeMarginPx, Math.min(dragState.startElementX + dragState.startElementW - 120, targetX));
+          newW = dragState.startElementW - (newX - dragState.startElementX);
 
-          newY = Math.max(safeMarginPx, targetY);
-          newH = Math.max(60, dragState.startElementH - (newY - dragState.startElementY));
-          if (newH === 60) {
-            newY = dragState.startElementY + dragState.startElementH - 60;
-          }
+          newY = Math.max(safeMarginPx, Math.min(dragState.startElementY + dragState.startElementH - 60, targetY));
+          newH = dragState.startElementH - (newY - dragState.startElementY);
         } else if (handle === 'ne') {
           const targetY = dragState.startElementY + dy;
           const targetW = dragState.startElementW + dx;
 
-          newY = Math.max(safeMarginPx, targetY);
-          newH = Math.max(60, dragState.startElementH - (newY - dragState.startElementY));
-          if (newH === 60) {
-            newY = dragState.startElementY + dragState.startElementH - 60;
-          }
+          newY = Math.max(safeMarginPx, Math.min(dragState.startElementY + dragState.startElementH - 60, targetY));
+          newH = dragState.startElementH - (newY - dragState.startElementY);
 
-          newW = Math.max(120, Math.min(maxRight - dragState.startElementX, targetW));
+          const availableW = Math.max(120, maxRight - dragState.startElementX);
+          newW = Math.max(120, Math.min(availableW, targetW));
         } else if (handle === 'se') {
           const targetW = dragState.startElementW + dx;
           const targetH = dragState.startElementH + dy;
 
-          newW = Math.max(120, Math.min(maxRight - dragState.startElementX, targetW));
-          newH = Math.max(60, Math.min(maxBottom - dragState.startElementY, targetH));
+          const availableW = Math.max(120, maxRight - dragState.startElementX);
+          const availableH = Math.max(60, maxBottom - dragState.startElementY);
+          newW = Math.max(120, Math.min(availableW, targetW));
+          newH = Math.max(60, Math.min(availableH, targetH));
         } else if (handle === 'sw') {
           const targetX = dragState.startElementX + dx;
           const targetH = dragState.startElementH + dy;
 
-          newX = Math.max(safeMarginPx, targetX);
-          newW = Math.max(120, dragState.startElementW - (newX - dragState.startElementX));
-          if (newW === 120) {
-            newX = dragState.startElementX + dragState.startElementW - 120;
-          }
+          newX = Math.max(safeMarginPx, Math.min(dragState.startElementX + dragState.startElementW - 120, targetX));
+          newW = dragState.startElementW - (newX - dragState.startElementX);
 
-          newH = Math.max(60, Math.min(maxBottom - dragState.startElementY, targetH));
+          const availableH = Math.max(60, maxBottom - dragState.startElementY);
+          newH = Math.max(60, Math.min(availableH, targetH));
         }
 
         setTempCoords({
@@ -197,14 +197,15 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
     };
 
     const handleMouseUp = () => {
-      if (tempCoords) {
+      const currentTemp = tempCoordsRef.current;
+      if (currentTemp) {
         updateLayoutElements([
           {
             id: dragState.elementId,
-            x: tempCoords.x,
-            y: tempCoords.y,
-            width: tempCoords.width,
-            height: tempCoords.height,
+            x: currentTemp.x,
+            y: currentTemp.y,
+            width: currentTemp.width,
+            height: currentTemp.height,
           },
         ]);
       }
@@ -219,7 +220,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, tempCoords, zoom, canvas.widthPx, canvas.heightPx, canvas.safeMarginPx, updateLayoutElements]);
+  }, [dragState, zoom, canvas.widthPx, canvas.heightPx, canvas.safeMarginPx, updateLayoutElements]);
 
   const handleStyle = {
     position: 'absolute' as const,
@@ -463,24 +464,25 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project }) => 
               justifyContent: 'center',
               cursor: 'move',
               outline: isSelected ? '1.5px solid #3b82f6' : 'none',
-              pointerEvents: 'auto',
+              pointerEvents: isSelected ? 'auto' : 'none',
               ...containerShadowStyle,
             }}
             onMouseDown={(e) => handleElementMouseDown(e, el)}
           >
-            <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', pointerEvents: 'none' }}>
               {fit.lines.map((line, idx) => (
                 <div
                   key={idx}
                   style={{
                     whiteSpace: 'nowrap',
                     margin: preset === 'backing_plate' ? '2px 0' : '0',
+                    pointerEvents: 'none',
                   }}
                 >
                   {preset === 'backing_plate' ? (
-                    <span style={backingPlateStyle}>{line}</span>
+                    <span style={{ ...backingPlateStyle, pointerEvents: 'auto' }}>{line}</span>
                   ) : (
-                    <span style={textStrokeStyle}>{line}</span>
+                    <span style={{ ...textStrokeStyle, pointerEvents: 'auto' }}>{line}</span>
                   )}
                 </div>
               ))}
