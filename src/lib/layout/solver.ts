@@ -136,7 +136,7 @@ export function autoSuggestLayout(project: Project): string {
   } else if (count >= 5 && count <= 20) {
     return 'inventory_board';
   } else {
-    return 'inventory_board';
+    return 'social_carousel';
   }
 }
 
@@ -955,7 +955,7 @@ function solveMenuListing(
 
       if (N > 0 && gridHeight > 0) {
         const baseRowHeight = gridHeight / N;
-        const rowHeight = Math.min(80, baseRowHeight); // default smaller row height e.g. 80px
+        const rowHeight = Math.max(60, Math.min(80, baseRowHeight)); // default smaller row height e.g. 80px, clamped to min 60px to prevent layout underflow
 
         visibleItems.forEach((item, itemIdx) => {
           const cardX = safeX;
@@ -1222,7 +1222,7 @@ function solveComparisonChart(
 
   if (N > 0) {
     const colGap = 15;
-    const colWidth = (safeWidth - (N - 1) * colGap) / N;
+    const colWidth = Math.max(120, (safeWidth - (N - 1) * colGap) / N);
 
     // Feature blocks aligned vertically
     const imageBlockHeight = Math.floor(mainHeight * 0.35);
