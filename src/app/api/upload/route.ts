@@ -27,6 +27,12 @@ export async function POST(request: NextRequest) {
     const contentLengthHeader = request.headers.get('content-length');
     if (contentLengthHeader) {
       const contentLength = parseInt(contentLengthHeader, 10);
+      if (Number.isNaN(contentLength) || contentLength < 0) {
+        return NextResponse.json(
+          { error: 'Invalid content-length header' },
+          { status: 400 }
+        );
+      }
       const limit = isBulk ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
       if (contentLength > limit) {
         return NextResponse.json(

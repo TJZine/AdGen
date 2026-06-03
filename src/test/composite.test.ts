@@ -140,6 +140,42 @@ describe('Composite & Background Import tests', () => {
       expect(data.error).toContain('exceeds the 10MB limit');
     });
 
+    it('rejects file if content-length header is malformed', async () => {
+      const formData = new FormData();
+      formData.append('file', new File([Buffer.from('fake')], 'image.jpg', { type: 'image/jpeg' }));
+
+      const req = new NextRequest('http://localhost:3000/api/upload', {
+        method: 'POST',
+        headers: {
+          'content-length': 'abc',
+        },
+        body: formData,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('Invalid content-length');
+    });
+
+    it('rejects file if content-length header is negative', async () => {
+      const formData = new FormData();
+      formData.append('file', new File([Buffer.from('fake')], 'image.jpg', { type: 'image/jpeg' }));
+
+      const req = new NextRequest('http://localhost:3000/api/upload', {
+        method: 'POST',
+        headers: {
+          'content-length': '-100',
+        },
+        body: formData,
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.error).toContain('Invalid content-length');
+    });
+
     it('rejects file if file.size exceeds 10MB', async () => {
       const largeFile = new File([new Uint8Array(11 * 1024 * 1024)], 'image.jpg', { type: 'image/jpeg' });
       const formData = new FormData();

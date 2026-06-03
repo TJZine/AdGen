@@ -42,4 +42,17 @@ describe('fitText horizontal overflow truncation', () => {
     expect(result.lines[0].endsWith('...')).toBe(true);
     expect(result.lines[1]).toBe('Short');
   });
+
+  it('correctly handles zero or negative maxWidth and maxHeight by clamping', () => {
+    const result = fitText('Hello World', -10, 0, 14);
+    expect(result.fontSize).toBe(10);
+    expect(result.isTruncated).toBe(true);
+  });
+
+  it('correctly handles huge base font size using binary search efficiently', () => {
+    const result = fitText('Short text', 200, 100, 1000);
+    expect(result.fontSize).toBeGreaterThanOrEqual(10);
+    expect(result.fontSize).toBeLessThanOrEqual(1000);
+    expect(result.isTruncated).toBe(false);
+  });
 });

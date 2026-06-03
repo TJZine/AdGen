@@ -73,6 +73,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
   };
 
   const [mode, setMode] = useState<'content' | 'canvas'>('content');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Initialize store with initialProject and assets, preserving URL parameters
   useEffect(() => {
@@ -102,11 +103,13 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
         }
       }
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsInitialized(true);
   }, [initialProject, initialAssets, project.id, setProject, setZoom, selectActiveVariant, selectComparisonVariant]);
 
   // Synchronize zoom, activeVariant, and comparisonVariant to URL query parameters
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !isInitialized) return;
     const params = new URLSearchParams(window.location.search);
     
     params.set('zoom', zoom.toString());
@@ -120,7 +123,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
     const newSearch = params.toString();
     const newUrl = `${window.location.pathname}?${newSearch}`;
     window.history.replaceState(null, '', newUrl);
-  }, [zoom, activeVariantId, comparisonVariantId]);
+  }, [zoom, activeVariantId, comparisonVariantId, isInitialized]);
 
   // Synchronize browser Back/Forward (popstate) actions back into Zustand store
   useEffect(() => {
@@ -161,6 +164,9 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
 
 
   const numSlides = getNumSlides(project);
+  const sanitizedZoom = typeof zoom === 'number' && Number.isFinite(zoom) && zoom > 0
+    ? Math.max(0.01, zoom)
+    : 0.75;
 
   return (
     <div className="flex flex-col h-screen w-screen bg-zinc-100 overflow-hidden font-sans select-none">
@@ -494,7 +500,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
                       <CanvasPreview
                         project={getProjectForVariant(activeVariantId)}
                         assets={assets}
-                        zoom={zoom}
+                        zoom={sanitizedZoom}
                       />
                     </div>
                   </div>
@@ -545,7 +551,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
                       <CanvasPreview
                         project={getProjectForVariant(comparisonVariantId)}
                         assets={assets}
-                        zoom={zoom}
+                        zoom={sanitizedZoom}
                       />
                     </div>
                   </div>
@@ -554,8 +560,8 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
                 /* Aspect ratio-locked canvas preview with absolute scaling */
                 <div
                   style={{
-                    width: `${project.canvas.widthPx * numSlides * zoom}px`,
-                    height: `${project.canvas.heightPx * zoom}px`,
+                    width: `${project.canvas.widthPx * numSlides * sanitizedZoom}px`,
+                    height: `${project.canvas.heightPx * sanitizedZoom}px`,
                     position: 'relative',
                   }}
                   data-testid="canvas-preview-container"
@@ -568,7 +574,7 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
                       left: 0,
                       width: `${project.canvas.widthPx * numSlides}px`,
                       height: `${project.canvas.heightPx}px`,
-                      transform: `scale(${zoom})`,
+                      transform: `scale(${sanitizedZoom})`,
                       transformOrigin: 'top left',
                     }}
                     className="shadow-2xl rounded overflow-hidden"

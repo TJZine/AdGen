@@ -90,21 +90,31 @@ export function fitText(
   const safeBaseFontSize = typeof baseFontSize === 'number' && Number.isFinite(baseFontSize) ? Math.max(8, baseFontSize) : 14;
   const safeLineHeightRatio = typeof lineHeightRatio === 'number' && Number.isFinite(lineHeightRatio) && lineHeightRatio > 0 ? lineHeightRatio : 1.2;
 
-  let fontSize = safeBaseFontSize;
   const minFontSize = 10;
-  
+  let low = minFontSize;
+  let high = safeBaseFontSize;
+  let fontSize = minFontSize;
   let lines: string[] = [];
+  let isFit = false;
 
-  while (fontSize >= minFontSize) {
-    lines = wrapText(text, safeMaxWidth, fontSize);
-    const totalHeight = lines.length * fontSize * safeLineHeightRatio;
-    const allLinesFitWidth = lines.every(line => estimateStringWidth(line, fontSize) <= safeMaxWidth);
-    
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const testLines = wrapText(text, safeMaxWidth, mid);
+    const totalHeight = testLines.length * mid * safeLineHeightRatio;
+    const allLinesFitWidth = testLines.every(line => estimateStringWidth(line, mid) <= safeMaxWidth);
+
     if (totalHeight <= safeMaxHeight && allLinesFitWidth) {
-      return { fontSize, isTruncated: false, lines };
+      fontSize = mid;
+      lines = testLines;
+      isFit = true;
+      low = mid + 1; // Try to fit a larger font size
+    } else {
+      high = mid - 1; // Try a smaller font size
     }
-    
-    fontSize--;
+  }
+
+  if (isFit) {
+    return { fontSize, isTruncated: false, lines };
   }
 
   fontSize = minFontSize;

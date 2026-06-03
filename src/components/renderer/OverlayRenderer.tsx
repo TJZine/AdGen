@@ -29,6 +29,7 @@ interface DragState {
 export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project, isRenderMode = false }) => {
   const { canvas, brand, layout } = project;
   const elements = layout.elements || [];
+  const numSlides = getNumSlides(project);
 
   const selectedElementId = useEditorStore((state) => state.selectedElementId);
   const selectElement = useEditorStore((state) => state.selectElement);
@@ -100,14 +101,15 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project, isRen
       const dy = (e.clientY - dragState.startY) / zoom;
 
       const safeMarginPx = canvas.safeMarginPx;
-      const maxRight = canvas.widthPx - safeMarginPx;
+      const totalWidth = canvas.widthPx * numSlides;
+      const maxRight = totalWidth - safeMarginPx;
       const maxBottom = canvas.heightPx - safeMarginPx;
 
       if (dragState.type === 'drag') {
         const calculatedX = dragState.startElementX + dx;
         const calculatedY = dragState.startElementY + dy;
 
-        const limitX = Math.max(safeMarginPx, canvas.widthPx - safeMarginPx - dragState.startElementW);
+        const limitX = Math.max(safeMarginPx, totalWidth - safeMarginPx - dragState.startElementW);
         const newX = Math.max(safeMarginPx, Math.min(limitX, calculatedX));
 
         const limitY = Math.max(safeMarginPx, canvas.heightPx - safeMarginPx - dragState.startElementH);
@@ -197,7 +199,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project, isRen
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [dragState, zoom, canvas.widthPx, canvas.heightPx, canvas.safeMarginPx, updateLayoutElements]);
+  }, [dragState, zoom, canvas.widthPx, canvas.heightPx, canvas.safeMarginPx, updateLayoutElements, numSlides]);
 
   const handleStyle = {
     position: 'absolute' as const,
@@ -209,7 +211,7 @@ export const OverlayRenderer: React.FC<OverlayRendererProps> = ({ project, isRen
     zIndex: 10,
   };
 
-  const numSlides = getNumSlides(project);
+
 
   const totalWidth = canvas.widthPx * numSlides;
 

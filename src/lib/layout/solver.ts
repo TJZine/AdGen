@@ -24,6 +24,10 @@ export function solveLayout(
 
   const elements: LayoutElement[] = [];
 
+  const numSlides = getNumSlides(activeProject);
+  const canvasWidth = activeProject.canvas.widthPx * numSlides;
+  const canvasHeight = activeProject.canvas.heightPx;
+
   const resolveElement = (el: LayoutElement): LayoutElement => {
     const clampedEl = {
       ...el,
@@ -33,12 +37,14 @@ export function solveLayout(
 
     const existing = activeProject.layout?.elements?.find((x) => x.id === el.id);
     if (existing && existing.locked) {
+      const targetW = typeof existing.width === 'number' && Number.isFinite(existing.width) ? Math.max(10, existing.width) : clampedEl.width;
+      const targetH = typeof existing.height === 'number' && Number.isFinite(existing.height) ? Math.max(10, existing.height) : clampedEl.height;
       return {
         ...clampedEl,
-        x: typeof existing.x === 'number' && Number.isFinite(existing.x) ? existing.x : clampedEl.x,
-        y: typeof existing.y === 'number' && Number.isFinite(existing.y) ? existing.y : clampedEl.y,
-        width: typeof existing.width === 'number' && Number.isFinite(existing.width) ? Math.max(10, existing.width) : clampedEl.width,
-        height: typeof existing.height === 'number' && Number.isFinite(existing.height) ? Math.max(10, existing.height) : clampedEl.height,
+        x: typeof existing.x === 'number' && Number.isFinite(existing.x) ? Math.max(0, Math.min(canvasWidth - targetW, existing.x)) : clampedEl.x,
+        y: typeof existing.y === 'number' && Number.isFinite(existing.y) ? Math.max(0, Math.min(canvasHeight - targetH, existing.y)) : clampedEl.y,
+        width: targetW,
+        height: targetH,
         locked: true,
         style: {
           ...clampedEl.style,
@@ -118,7 +124,6 @@ export function solveLayout(
   }
 
   // Determine total bounds width (multiple pages for social carousel)
-  const numSlides = getNumSlides(activeProject);
 
   // Evaluate score and constraints
   const { score, warnings } = evaluateLayout(
@@ -572,8 +577,8 @@ function solveInventoryBoard(
 
         for (let c = 1; c <= Math.min(N, 6); c++) {
           const r = Math.ceil(N / c);
-          const cardW = safeWidth / c;
-          const cardH = gridHeight / r;
+          const cardW = Math.max(20, safeWidth / c);
+          const cardH = Math.max(20, gridHeight / r);
           const aspect = cardW / cardH;
 
           let configScore = 0;
@@ -791,8 +796,8 @@ function solveHeroGrid(
 
       for (let c = 1; c <= Math.min(N, 6); c++) {
         const r = Math.ceil(N / c);
-        const cardW = safeWidth / c;
-        const cardH = remainingHeight / r;
+        const cardW = Math.max(20, safeWidth / c);
+        const cardH = Math.max(20, remainingHeight / r);
         const aspect = cardW / cardH;
 
         let configScore = 0;
@@ -1284,10 +1289,10 @@ function solveComparisonChart(
     const colWidth = Math.max(120, (safeWidth - (N - 1) * colGap) / N);
 
     // Feature blocks aligned vertically
-    const imageBlockHeight = Math.floor(mainHeight * 0.35);
-    const titleBlockHeight = Math.floor(mainHeight * 0.15);
-    const descBlockHeight = Math.floor(mainHeight * 0.35);
-    const priceBlockHeight = Math.floor(mainHeight * 0.10);
+    const imageBlockHeight = Math.max(10, Math.floor(mainHeight * 0.35));
+    const titleBlockHeight = Math.max(10, Math.floor(mainHeight * 0.15));
+    const descBlockHeight = Math.max(10, Math.floor(mainHeight * 0.35));
+    const priceBlockHeight = Math.max(10, Math.floor(mainHeight * 0.10));
 
     allVisibleItems.forEach((item, i) => {
       const colX = safeX + i * (colWidth + colGap);
@@ -1564,8 +1569,8 @@ function solveSocialCarousel(
 
       const cols = M > 1 ? 2 : 1;
       const rows = M > 2 ? 2 : 1;
-      const cardW = (safeWidth - (cols - 1) * 20) / cols;
-      const cardH = (gridHeight - (rows - 1) * 20) / rows;
+      const cardW = Math.max(20, (safeWidth - (cols - 1) * 20) / cols);
+      const cardH = Math.max(20, (gridHeight - (rows - 1) * 20) / rows);
 
       chunk.forEach((item, idx) => {
         const colIdx = idx % cols;
