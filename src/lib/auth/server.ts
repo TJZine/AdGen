@@ -89,6 +89,10 @@ export function authenticateRequest(request: NextRequest): AuthenticatedUser | n
     if (user) return user;
   }
 
+  if (process.env.NODE_ENV === 'production') {
+    return null;
+  }
+
   if (secret) return null;
 
   return getDevelopmentUser(request);
@@ -100,6 +104,10 @@ export function authenticateSessionCookie(sessionToken?: string): AuthenticatedU
   if (secret && sessionToken) {
     const user = verifySignedSession(sessionToken, secret);
     if (user) return user;
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return null;
   }
 
   if (secret) return null;

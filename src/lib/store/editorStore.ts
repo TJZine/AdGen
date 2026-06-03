@@ -221,7 +221,7 @@ const resolveAndUpdateState = (
         ...nextProject.layout,
         layoutFamily: activeVariant.layoutFamily,
         density: activeVariant.density,
-        elements: cloneProject(activeVariant.elements as any),
+        elements: cloneProject(activeVariant.elements),
         score: activeVariant.score,
         warnings: activeVariant.warnings,
       };
@@ -608,7 +608,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...nextProject.layout,
           layoutFamily: activeVariant.layoutFamily,
           density: activeVariant.density,
-          elements: cloneProject(activeVariant.elements as any),
+          elements: cloneProject(activeVariant.elements),
           score: activeVariant.score,
           warnings: activeVariant.warnings,
         };
@@ -663,7 +663,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...nextProject.layout,
           layoutFamily: activeVariant.layoutFamily,
           density: activeVariant.density,
-          elements: cloneProject(activeVariant.elements as any),
+          elements: cloneProject(activeVariant.elements),
           score: activeVariant.score,
           warnings: activeVariant.warnings,
         };
@@ -708,7 +708,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         name: 'Primary Layout (Copy)',
         layoutFamily: primaryLayout.layoutFamily,
         density: primaryLayout.density,
-        elements: cloneProject(primaryLayout.elements as any),
+        elements: cloneProject(primaryLayout.elements),
         score: primaryLayout.score,
         warnings: [...primaryLayout.warnings],
         polishedBackground: primaryPolishedBackground ? cloneProject(primaryPolishedBackground) : undefined,
@@ -719,7 +719,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         name: `${baseVariant.name} (Copy)`,
         layoutFamily: baseVariant.layoutFamily,
         density: baseVariant.density,
-        elements: cloneProject(baseVariant.elements as any),
+        elements: cloneProject(baseVariant.elements),
         score: baseVariant.score,
         warnings: [...baseVariant.warnings],
         polishedBackground: baseVariant.polishedBackground ? cloneProject(baseVariant.polishedBackground) : undefined,
@@ -738,7 +738,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...nextProject.layout,
           layoutFamily: activeVariant.layoutFamily,
           density: activeVariant.density,
-          elements: cloneProject(activeVariant.elements as any),
+          elements: cloneProject(activeVariant.elements),
           score: activeVariant.score,
           warnings: activeVariant.warnings,
         };
@@ -781,7 +781,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           ...nextProject.layout,
           layoutFamily: activeVariant.layoutFamily,
           density: activeVariant.density,
-          elements: cloneProject(activeVariant.elements as any),
+          elements: cloneProject(activeVariant.elements),
           score: activeVariant.score,
           warnings: activeVariant.warnings,
         };
@@ -825,7 +825,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...primaryLayout,
       layoutFamily: variant.layoutFamily,
       density: variant.density,
-      elements: cloneProject(variant.elements as any),
+      elements: cloneProject(variant.elements),
       score: variant.score,
       warnings: [...variant.warnings],
     };
@@ -868,7 +868,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             ...activeProject.layout,
             layoutFamily: activeVariant.layoutFamily,
             density: activeVariant.density,
-            elements: cloneProject(activeVariant.elements as any),
+            elements: cloneProject(activeVariant.elements),
             score: activeVariant.score,
             warnings: activeVariant.warnings,
           };
@@ -921,7 +921,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             ...activeProject.layout,
             layoutFamily: activeVariant.layoutFamily,
             density: activeVariant.density,
-            elements: cloneProject(activeVariant.elements as any),
+            elements: cloneProject(activeVariant.elements),
             score: activeVariant.score,
             warnings: activeVariant.warnings,
           };

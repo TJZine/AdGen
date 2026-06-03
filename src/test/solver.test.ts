@@ -251,6 +251,7 @@ describe('HGP Layout Solver', () => {
       safeMarginPx: 20,
       unit: 'px' as const,
     };
+    project.brand.website = '';
     
     const result = solveLayout(project);
     

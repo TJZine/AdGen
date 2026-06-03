@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
       const sharpInstance = sharp(buffer).rotate();
 
       // sharp strips EXIF by default unless withMetadata() is called.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const processedBuffer = await sharpInstance.toFormat(ext as any).toBuffer();
+      const format = ext === 'jpg' ? 'jpeg' : ext;
+      const processedBuffer = await sharpInstance.toFormat(format as keyof sharp.FormatEnum).toBuffer();
       const metadata = await sharp(processedBuffer).metadata();
 
       const uuid = crypto.randomUUID();

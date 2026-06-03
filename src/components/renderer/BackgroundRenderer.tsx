@@ -3,6 +3,7 @@
 import React from 'react';
 import { Project, Asset } from '../../lib/schemas/project';
 import { fitText } from '../../lib/layout/textFit';
+import { getNumSlides } from '../../lib/layout/solver';
 import { QRCodeImage } from './QRCodeImage';
 import { getElementText } from '../../lib/renderer/utils';
 
@@ -23,9 +24,7 @@ export const BackgroundRenderer: React.FC<BackgroundRendererProps> = ({ project,
   const hasPolishedBg = !!polishedBg?.assetId;
   const polishedAsset = hasPolishedBg ? assets?.find((a) => a.id === polishedBg.assetId) : null;
 
-  const numSlides = project.layout?.layoutFamily === 'social_carousel'
-    ? project.content.sections.length
-    : 1;
+  const numSlides = getNumSlides(project);
 
   const totalWidth = canvas.widthPx * numSlides;
 

@@ -74,35 +74,35 @@ export const EditorWorkspace: React.FC<EditorWorkspaceProps> = ({
 
   const [mode, setMode] = useState<'content' | 'canvas'>('content');
 
-  // Initialize store with initialProject and assets
+  // Initialize store with initialProject and assets, preserving URL parameters
   useEffect(() => {
-    setProject(initialProject, initialAssets);
-  }, [initialProject, initialAssets, setProject]);
+    if (!project.id || project.id !== initialProject.id) {
+      setProject(initialProject, initialAssets);
 
-  // Load settings from URL parameters on mount
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    
-    const urlZoom = params.get('zoom');
-    if (urlZoom) {
-      const parsedZoom = parseFloat(urlZoom);
-      if (Number.isFinite(parsedZoom) && parsedZoom > 0) {
-        setZoom(parsedZoom);
+      // Restore settings from URL parameters on mount
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        
+        const urlZoom = params.get('zoom');
+        if (urlZoom) {
+          const parsedZoom = parseFloat(urlZoom);
+          if (Number.isFinite(parsedZoom) && parsedZoom > 0) {
+            setZoom(parsedZoom);
+          }
+        }
+        
+        const urlVariant = params.get('variant');
+        if (urlVariant) {
+          selectActiveVariant(urlVariant === 'primary' ? null : urlVariant);
+        }
+        
+        const urlCompare = params.get('compare');
+        if (urlCompare) {
+          selectComparisonVariant(urlCompare === 'primary' ? null : urlCompare);
+        }
       }
     }
-    
-    const urlVariant = params.get('variant');
-    if (urlVariant) {
-      selectActiveVariant(urlVariant === 'primary' ? null : urlVariant);
-    }
-    
-    const urlCompare = params.get('compare');
-    if (urlCompare) {
-      selectComparisonVariant(urlCompare === 'primary' ? null : urlCompare);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialProject, initialAssets, project.id, setProject, setZoom, selectActiveVariant, selectComparisonVariant]);
 
   // Synchronize zoom, activeVariant, and comparisonVariant to URL query parameters
   useEffect(() => {

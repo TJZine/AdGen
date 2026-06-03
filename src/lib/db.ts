@@ -25,6 +25,7 @@ function createPrismaClient() {
   // SQLite db path is dynamic based on DATABASE_URL or defaults to dev.db
   const adapter = new PrismaBetterSqlite3({
     url: dbUrl,
+    timeout: 10000,
   });
   
   const client = new PrismaClient({

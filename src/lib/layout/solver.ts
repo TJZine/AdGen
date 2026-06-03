@@ -99,7 +99,9 @@ export function solveLayout(
     const defaultX = activeProject.canvas.widthPx - safeMargin - qrSize;
     let defaultY = activeProject.canvas.heightPx - safeMargin - qrSize;
     if (footerEl) {
-      defaultY = Math.max(safeMargin, footerEl.y - qrSize - 10);
+      defaultY = footerEl.y + (footerEl.height - qrSize) / 2;
+    } else {
+      defaultY = activeProject.canvas.heightPx - safeMargin - qrSize - 10;
     }
 
     elements.push({
@@ -472,11 +474,16 @@ function solveInventoryBoard(
 
   // Budget Footer space
   const hasFooter = !!brand.defaultFooter || !!brand.defaultDisclaimer;
-  const footerHeight = hasFooter ? Math.max(100, Math.floor(safeHeight * 0.06)) : 0;
+  const hasQrCode = !!brand.website;
+  const footerHeight = hasFooter
+    ? Math.max(hasQrCode ? 140 : 100, Math.floor(safeHeight * 0.06))
+    : (hasQrCode ? 140 : 0);
 
-  if (footerHeight > 0) {
+  if (footerHeight > 0 && hasFooter) {
     const footerText = `${brand.defaultFooter} ${brand.defaultDisclaimer}`.trim();
-    const fit = fitText(footerText, safeWidth, footerHeight, 14);
+    const qrSize = 120;
+    const footerW = hasQrCode ? safeWidth - qrSize - 30 : safeWidth;
+    const fit = fitText(footerText, footerW, footerHeight, 14);
     textFitResults.push({ text: footerText, ...fit });
 
     elements.push({
@@ -485,7 +492,7 @@ function solveInventoryBoard(
       contentRef: 'brand.defaultFooter',
       x: safeX,
       y: safeY + safeHeight - footerHeight,
-      width: safeWidth,
+      width: footerW,
       height: footerHeight,
       locked: false,
       style: {
@@ -702,11 +709,16 @@ function solveHeroGrid(
 
   // Budget Footer space
   const hasFooter = !!brand.defaultFooter || !!brand.defaultDisclaimer;
-  const footerHeight = hasFooter ? Math.max(100, Math.floor(safeHeight * 0.06)) : 0;
+  const hasQrCode = !!brand.website;
+  const footerHeight = hasFooter
+    ? Math.max(hasQrCode ? 140 : 100, Math.floor(safeHeight * 0.06))
+    : (hasQrCode ? 140 : 0);
 
-  if (footerHeight > 0) {
+  if (footerHeight > 0 && hasFooter) {
     const footerText = `${brand.defaultFooter} ${brand.defaultDisclaimer}`.trim();
-    const fit = fitText(footerText, safeWidth, footerHeight, 14);
+    const qrSize = 120;
+    const footerW = hasQrCode ? safeWidth - qrSize - 30 : safeWidth;
+    const fit = fitText(footerText, footerW, footerHeight, 14);
     textFitResults.push({ text: footerText, ...fit });
 
     elements.push({
@@ -715,7 +727,7 @@ function solveHeroGrid(
       contentRef: 'brand.defaultFooter',
       x: safeX,
       y: safeY + safeHeight - footerHeight,
-      width: safeWidth,
+      width: footerW,
       height: footerHeight,
       locked: false,
       style: {
@@ -911,11 +923,16 @@ function solveMenuListing(
 
   // Budget Footer space
   const hasFooter = !!brand.defaultFooter || !!brand.defaultDisclaimer;
-  const footerHeight = hasFooter ? Math.max(100, Math.floor(safeHeight * 0.06)) : 0;
+  const hasQrCode = !!brand.website;
+  const footerHeight = hasFooter
+    ? Math.max(hasQrCode ? 140 : 100, Math.floor(safeHeight * 0.06))
+    : (hasQrCode ? 140 : 0);
 
-  if (footerHeight > 0) {
+  if (footerHeight > 0 && hasFooter) {
     const footerText = `${brand.defaultFooter} ${brand.defaultDisclaimer}`.trim();
-    const fit = fitText(footerText, safeWidth, footerHeight, 14);
+    const qrSize = 120;
+    const footerW = hasQrCode ? safeWidth - qrSize - 30 : safeWidth;
+    const fit = fitText(footerText, footerW, footerHeight, 14);
     textFitResults.push({ text: footerText, ...fit });
 
     elements.push({
@@ -924,7 +941,7 @@ function solveMenuListing(
       contentRef: 'brand.defaultFooter',
       x: safeX,
       y: safeY + safeHeight - footerHeight,
-      width: safeWidth,
+      width: footerW,
       height: footerHeight,
       locked: false,
       style: {
@@ -1222,11 +1239,16 @@ function solveComparisonChart(
 
   // Budget Footer space
   const hasFooter = !!brand.defaultFooter || !!brand.defaultDisclaimer;
-  const footerHeight = hasFooter ? Math.max(100, Math.floor(safeHeight * 0.06)) : 0;
+  const hasQrCode = !!brand.website;
+  const footerHeight = hasFooter
+    ? Math.max(hasQrCode ? 140 : 100, Math.floor(safeHeight * 0.06))
+    : (hasQrCode ? 140 : 0);
 
-  if (footerHeight > 0) {
+  if (footerHeight > 0 && hasFooter) {
     const footerText = `${brand.defaultFooter} ${brand.defaultDisclaimer}`.trim();
-    const fit = fitText(footerText, safeWidth, footerHeight, 14);
+    const qrSize = 120;
+    const footerW = hasQrCode ? safeWidth - qrSize - 30 : safeWidth;
+    const fit = fitText(footerText, footerW, footerHeight, 14);
     textFitResults.push({ text: footerText, ...fit });
 
     elements.push({
@@ -1235,7 +1257,7 @@ function solveComparisonChart(
       contentRef: 'brand.defaultFooter',
       x: safeX,
       y: safeY + safeHeight - footerHeight,
-      width: safeWidth,
+      width: footerW,
       height: footerHeight,
       locked: false,
       style: {
