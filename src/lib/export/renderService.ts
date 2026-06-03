@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext } from '@playwright/test';
+import { chromium, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { prisma } from '../db';
 import { ProjectSchema, type Project, type LayoutElement, type Section } from '../schemas/project';
 import { solveLayout } from '../layout/solver';
@@ -87,6 +87,18 @@ async function getSharedBrowser(): Promise<Browser> {
   return sharedBrowserPromise;
 }
 
+async function waitForQrCodeToLoad(page: Page): Promise<void> {
+  try {
+    await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 });
+    await page.waitForFunction(() => {
+      const img = document.querySelector('[data-testid="qr-code-img"]') as HTMLImageElement;
+      return img && img.complete && img.naturalWidth > 0;
+    }, { timeout: 3000 });
+  } catch (e) {
+    console.warn('QR code image did not fully load within timeout', e);
+  }
+}
+
 /**
  * Renders the flyer layout as a PNG binary Buffer using headless Chromium via Playwright.
  *
@@ -165,7 +177,7 @@ export async function renderLayoutPng(
       const hasQrCode = projectResult.data.layout?.elements?.some((el: { type: string }) => el.type === 'qr_code') || 
                         solveLayout(projectResult.data).elements.some((el: { type: string }) => el.type === 'qr_code');
       if (hasQrCode) {
-        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+        await waitForQrCodeToLoad(page);
       }
 
       // 7. Take PNG screenshot of the canvas element specifically
@@ -247,7 +259,7 @@ export async function renderLayoutImages(
         timeout: 10000,
       });
       if (hasQrCode) {
-        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+        await waitForQrCodeToLoad(page);
       }
       const fullBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
         type: 'png',
@@ -262,7 +274,7 @@ export async function renderLayoutImages(
         timeout: 10000,
       });
       if (hasQrCode) {
-        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+        await waitForQrCodeToLoad(page);
       }
       const bgBuffer = await page.locator('[data-testid="canvas-preview-container"]').screenshot({
         type: 'png',
@@ -356,7 +368,7 @@ export async function renderLayoutOverlayPng(projectId: string): Promise<Buffer>
       const hasQrCode = projectResult.data.layout?.elements?.some((el: { type: string }) => el.type === 'qr_code') || 
                         solveLayout(projectResult.data).elements.some((el: { type: string }) => el.type === 'qr_code');
       if (hasQrCode) {
-        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+        await waitForQrCodeToLoad(page);
       }
 
       // 7. Take PNG screenshot of the canvas element specifically, omitting background for transparency
@@ -624,7 +636,7 @@ export async function renderLayoutPdf(projectId: string): Promise<Buffer> {
       const solved = solveLayout(projectResult.data);
       const hasQrCode = solved.elements.some(e => e.type === 'qr_code');
       if (hasQrCode) {
-        await page.waitForSelector('[data-testid="qr-code-img"]', { timeout: 3000 }).catch(() => {});
+        await waitForQrCodeToLoad(page);
       }
 
       // 7. Run page.pdf with exact dimensions in pixels
