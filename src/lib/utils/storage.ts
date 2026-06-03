@@ -17,9 +17,11 @@ function getStorageConfig(): StorageConfig | null {
   const publicBaseUrl = process.env.AWS_S3_PUBLIC_BASE_URL;
   const region = process.env.AWS_REGION;
 
-  if (!bucket && !accessKey && !secretKey) return null;
+  const hasRemoteStorageConfig = [bucket, accessKey, secretKey, endpoint, publicBaseUrl].some(Boolean);
+  if (!hasRemoteStorageConfig) return null;
+
   if (!bucket || !accessKey || !secretKey) {
-    throw new Error('Remote storage is partially configured. AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY are required together.');
+    throw new Error('Remote storage is partially configured. AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY are required together when AWS_S3_ENDPOINT or AWS_S3_PUBLIC_BASE_URL is configured.');
   }
 
   if (!endpoint && !publicBaseUrl && !region) {

@@ -131,7 +131,6 @@ export default async function DashboardPage() {
       activeVariantId: null,
     };
 
-    let created = false;
     try {
       await prisma.project.create({
         data: {
@@ -142,14 +141,12 @@ export default async function DashboardPage() {
           ownerId: actionUser.id,
         },
       });
-      created = true;
     } catch (error) {
       console.error('Failed to create new project:', error);
+      throw error;
     }
 
-    if (created) {
-      redirect(`/editor/${id}`);
-    }
+    redirect(`/editor/${id}`);
   }
 
   return (

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ProjectSchema } from '@/lib/schemas/project';
-import { Prisma } from '@prisma/client';
 import { authenticateRequest, unauthorizedResponse } from '@/lib/auth/server';
 
 export async function PUT(
@@ -33,6 +32,12 @@ export async function PUT(
     }
 
     const validatedProject = parseResult.data;
+    if (validatedProject.id !== id) {
+      return NextResponse.json(
+        { error: 'Project ID mismatch between route and request body' },
+        { status: 400 }
+      );
+    }
 
     const existingProject = await prisma.project.findUnique({
       where: { id },
@@ -53,37 +58,30 @@ export async function PUT(
       );
     }
 
-    try {
-      await prisma.project.update({
+    const updateResult = await prisma.project.updateMany({
+      where: user.role === 'admin' ? { id } : { id, ownerId: user.id },
+      data: {
+        name: validatedProject.name,
+        type: validatedProject.type,
+        contentJson: JSON.stringify(validatedProject),
+      },
+    });
+
+    if (updateResult.count === 0) {
+      const exists = await prisma.project.findUnique({
         where: { id },
-        data: {
-          name: validatedProject.name,
-          type: validatedProject.type,
-          contentJson: JSON.stringify(validatedProject),
-        },
+        select: { id: true },
       });
 
-      return NextResponse.json({ success: true, project: validatedProject });
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
-        // Differentiate 403 Forbidden from 404 Not Found by checking if project exists at all
-        const exists = await prisma.project.findUnique({
-          where: { id },
-          select: { id: true }
-        });
-        if (exists) {
-          return NextResponse.json(
-            { error: 'Forbidden: You do not own this project' },
-            { status: 403 }
-          );
-        }
-        return NextResponse.json(
-          { error: `Project with ID ${id} not found` },
-          { status: 404 }
-        );
-      }
-      throw err;
+      return NextResponse.json(
+        exists
+          ? { error: 'Forbidden: You do not own this project' }
+          : { error: `Project with ID ${id} not found` },
+        { status: exists ? 403 : 404 }
+      );
     }
+
+    return NextResponse.json({ success: true, project: validatedProject });
   } catch (error) {
     console.error('Error updating project:', error);
     return NextResponse.json(
