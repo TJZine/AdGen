@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { ProjectSchema } from '@/lib/schemas/project';
+import { Prisma } from '@prisma/client';
 
 export async function PUT(
   request: NextRequest,
@@ -15,6 +16,9 @@ export async function PUT(
       );
     }
 
+    const userId = request.headers.get('x-user-id');
+    const userRole = request.headers.get('x-user-role');
+
     const body = await request.json();
 
     const parseResult = ProjectSchema.safeParse(body);
@@ -27,29 +31,47 @@ export async function PUT(
 
     const validatedProject = parseResult.data;
 
-    // Check if the project exists in the database
-    const existing = await prisma.project.findUnique({
-      where: { id },
-    });
-
-    if (!existing) {
-      return NextResponse.json(
-        { error: `Project with ID ${id} not found` },
-        { status: 404 }
-      );
+    // Build the query clause. 
+    // If not admin, the user can only update projects they own or that have no owner.
+    const whereClause: any = { id };
+    if (userRole !== 'admin') {
+      whereClause.OR = [
+        { ownerId: userId },
+        { ownerId: null }
+      ];
     }
 
-    // Update name, type, and contentJson in database
-    await prisma.project.update({
-      where: { id },
-      data: {
-        name: validatedProject.name,
-        type: validatedProject.type,
-        contentJson: JSON.stringify(validatedProject),
-      },
-    });
+    try {
+      await prisma.project.update({
+        where: whereClause,
+        data: {
+          name: validatedProject.name,
+          type: validatedProject.type,
+          contentJson: JSON.stringify(validatedProject),
+        },
+      });
 
-    return NextResponse.json({ success: true, project: validatedProject });
+      return NextResponse.json({ success: true, project: validatedProject });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        // Differentiate 403 Forbidden from 404 Not Found by checking if project exists at all
+        const exists = await prisma.project.findUnique({
+          where: { id },
+          select: { id: true }
+        });
+        if (exists) {
+          return NextResponse.json(
+            { error: 'Forbidden: You do not own this project' },
+            { status: 403 }
+          );
+        }
+        return NextResponse.json(
+          { error: `Project with ID ${id} not found` },
+          { status: 404 }
+        );
+      }
+      throw err;
+    }
   } catch (error) {
     console.error('Error updating project:', error);
     return NextResponse.json(

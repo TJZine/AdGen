@@ -5,9 +5,28 @@ import sharp from 'sharp';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { uploadToStorage } from '@/lib/utils/storage';
+import { uploadRateLimiter } from '@/lib/utils/rateLimiter';
 
 export async function POST(request: NextRequest) {
-  const succeededAssets: { id: string; filePath: string }[] = [];
+  // 1. Authenticate request using x-user-id header
+  const userId = request.headers.get('x-user-id');
+  if (!userId) {
+    return NextResponse.json(
+      { error: 'Unauthorized: Missing x-user-id header' },
+      { status: 401 }
+    );
+  }
+
+  // 2. Enforce token-bucket based rate limiting
+  if (!uploadRateLimiter.consume(userId)) {
+    return NextResponse.json(
+      { error: 'Too Many Requests' },
+      { status: 429 }
+    );
+  }
+
+  const succeededAssets: { id: string; filePath: string; isRemote: boolean }[] = [];
   try {
     const isBulk = request.nextUrl.searchParams.get('bulk') === 'true';
 
@@ -62,7 +81,8 @@ export async function POST(request: NextRequest) {
       const ext = (detected.ext === 'jpg' || detected.ext === 'jpeg') ? 'jpg' : detected.ext === 'png' ? 'png' : 'webp';
 
       // Process image via sharp to strip all metadata and optimize it
-      const sharpInstance = sharp(buffer);
+      // Call rotate() to respect EXIF orientation before saving!
+      const sharpInstance = sharp(buffer).rotate();
 
       // sharp strips EXIF by default unless withMetadata() is called.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -71,25 +91,23 @@ export async function POST(request: NextRequest) {
 
       const uuid = crypto.randomUUID();
       const fileName = `${uuid}.${ext}`;
-      const relativeUrl = `/uploads/${fileName}`;
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-      const filePath = path.join(uploadDir, fileName);
 
-      // Ensure uploads directory exists
-      await fs.mkdir(uploadDir, { recursive: true });
+      // Upload using our new utility (supports S3/R2 with local fallback)
+      const uploadResult = await uploadToStorage(processedBuffer, fileName, detected.mime);
 
-      // Save optimized file to disk
-      await fs.writeFile(filePath, processedBuffer);
+      succeededAssets.push({ 
+        id: uuid, 
+        filePath: uploadResult.filePath, 
+        isRemote: uploadResult.isRemote 
+      });
 
-      succeededAssets.push({ id: uuid, filePath });
-
-      // Insert database Asset entry using Prisma
+      // Insert database Asset entry using Prisma (canonical fields only)
       const asset = await prisma.asset.create({
         data: {
           id: uuid,
           name: file.name,
           type: 'image',
-          filePath: relativeUrl,
+          filePath: uploadResult.filePath,
           mimeType: detected.mime,
           sizeBytes: processedBuffer.length,
           width: metadata.width ?? null,
@@ -118,10 +136,13 @@ export async function POST(request: NextRequest) {
 
     // Rollback any successfully created files/database entries to prevent orphans
     for (const asset of succeededAssets) {
-      try {
-        await fs.unlink(asset.filePath);
-      } catch (err) {
-        console.error(`Failed to cleanup file ${asset.filePath}:`, err);
+      if (!asset.isRemote) {
+        try {
+          const localPath = path.join(process.cwd(), 'public', asset.filePath);
+          await fs.unlink(localPath);
+        } catch (err) {
+          console.error(`Failed to cleanup file ${asset.filePath}:`, err);
+        }
       }
       try {
         await prisma.asset.delete({ where: { id: asset.id } }).catch(() => {});
@@ -137,3 +158,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

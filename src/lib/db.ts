@@ -7,8 +7,11 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
+  const dbUrl = process.env.DATABASE_URL || 'file:dev.db';
+  const dbPath = dbUrl.startsWith('file:') ? dbUrl.substring(5) : dbUrl;
+
   try {
-    const db = new Database('dev.db');
+    const db = new Database(dbPath);
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
     db.close();
@@ -16,9 +19,9 @@ function createPrismaClient() {
     console.error('Failed to initialize WAL mode synchronously:', error);
   }
 
-  // SQLite dev.db is created at the project root based on prisma.config.ts
+  // SQLite db path is dynamic based on DATABASE_URL or defaults to dev.db
   const adapter = new PrismaBetterSqlite3({
-    url: 'file:dev.db',
+    url: dbUrl,
   });
   
   const client = new PrismaClient({
