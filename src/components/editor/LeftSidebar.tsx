@@ -3,7 +3,7 @@
 import React from 'react';
 import { useEditorStore } from '@/lib/store/editorStore';
 import { autoSuggestLayout } from '@/lib/layout/solver';
-import { parseSpreadsheet } from '@/lib/utils/csv';
+import { parseSpreadsheet, sanitizeSpreadsheetFormula } from '@/lib/utils/csv';
 import { Section, Item, Asset } from '@/lib/schemas/project';
 
 export const CANVAS_PRESETS = [
@@ -682,6 +682,31 @@ interface RawSection {
   items?: RawItem[];
 }
 
+const sanitizeMetadata = (meta: any) => {
+  if (!meta || typeof meta !== 'object') {
+    return { tags: [] };
+  }
+  const cleanMeta: Record<string, any> = { tags: [] };
+  for (const key of Object.keys(meta)) {
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+      continue;
+    }
+    if (key === 'tags' && Array.isArray(meta.tags)) {
+      cleanMeta.tags = meta.tags
+        .filter((t: any) => typeof t === 'string' || typeof t === 'number')
+        .map((t: any) => sanitizeSpreadsheetFormula(String(t)));
+    } else {
+      const val = meta[key];
+      if (typeof val === 'string') {
+        cleanMeta[key] = sanitizeSpreadsheetFormula(val);
+      } else if (typeof val === 'number' || typeof val === 'boolean' || val === null) {
+        cleanMeta[key] = val;
+      }
+    }
+  }
+  return cleanMeta;
+};
+
 const validateAndSanitizeSections = (parsedData: unknown): Section[] => {
   let rawSections: RawSection[] = [];
   if (Array.isArray(parsedData)) {
@@ -719,13 +744,13 @@ const validateAndSanitizeSections = (parsedData: unknown): Section[] => {
       return {
         id: item.id || generateId(),
         sectionId: sectionId,
-        title: String(item.title),
-        subtitle: String(item.subtitle || ''),
-        description: String(item.description || ''),
+        title: sanitizeSpreadsheetFormula(String(item.title)),
+        subtitle: sanitizeSpreadsheetFormula(String(item.subtitle || '')),
+        description: sanitizeSpreadsheetFormula(String(item.description || '')),
         price: typeof item.price === 'number' ? item.price : null,
-        priceDisplay: item.priceDisplay !== undefined ? String(item.priceDisplay) : '',
+        priceDisplay: item.priceDisplay !== undefined ? sanitizeSpreadsheetFormula(String(item.priceDisplay)) : '',
         salePrice: typeof item.salePrice === 'number' ? item.salePrice : null,
-        badge: item.badge ? String(item.badge) : null,
+        badge: item.badge ? sanitizeSpreadsheetFormula(String(item.badge)) : null,
         imageAssetId: item.imageAssetId ? String(item.imageAssetId) : null,
         priority: (item.priority && ['hero', 'featured', 'normal', 'compact'].includes(item.priority) ? item.priority : 'normal') as Item['priority'],
         visibility: (item.visibility && ['visible', 'hidden'].includes(item.visibility) ? item.visibility : 'visible') as Item['visibility'],
@@ -734,14 +759,14 @@ const validateAndSanitizeSections = (parsedData: unknown): Section[] => {
           imageFit: item.layoutHints?.imageFit && ['contain', 'cover', 'crop', 'transparent', 'full_bleed'].includes(item.layoutHints.imageFit) ? (item.layoutHints.imageFit as Item['layoutHints']['imageFit']) : 'contain',
           preferredAspectRatio: item.layoutHints?.preferredAspectRatio ? String(item.layoutHints.preferredAspectRatio) : '4:3',
         },
-        metadata: item.metadata && typeof item.metadata === 'object' ? item.metadata : { tags: [] }
+        metadata: sanitizeMetadata(item.metadata)
       };
     });
 
     return {
       id: sectionId,
-      title: String(sec.title),
-      subtitle: String(sec.subtitle || ''),
+      title: sanitizeSpreadsheetFormula(String(sec.title)),
+      subtitle: sanitizeSpreadsheetFormula(String(sec.subtitle || '')),
       priority: (sec.priority && ['high', 'normal', 'low'].includes(sec.priority) ? sec.priority : 'normal') as Section['priority'],
       layoutHint: (sec.layoutHint && ['grid', 'list', 'featured_hero'].includes(sec.layoutHint) ? sec.layoutHint : 'grid') as Section['layoutHint'],
       order: typeof sec.order === 'number' ? sec.order : secIdx,
