@@ -976,7 +976,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to save project. Status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        const detailsStr = errorData.details ? ` Details: ${JSON.stringify(errorData.details)}` : '';
+        throw new Error(`Failed to save project. Status: ${response.status}.${detailsStr}`);
       }
 
       set({

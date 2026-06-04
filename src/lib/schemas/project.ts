@@ -52,7 +52,14 @@ export const BrandProfileSchema = z.object({
   id: z.string().uuid().or(z.string()),
   brandName: z.string().min(1, 'Brand name is required'),
   logoAssetId: z.string().nullable().default(null),
-  website: z.string().url().or(z.literal('')).default(''),
+  website: z.preprocess((val) => {
+    if (typeof val !== 'string') return val;
+    const trimmed = val.trim();
+    if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+      return `https://${trimmed}`;
+    }
+    return trimmed;
+  }, z.string().url().or(z.literal('')).default('')),
   phone: z.string().default(''),
   email: z.string().email().or(z.literal('')).default(''),
   defaultFooter: z.string().default(''),
