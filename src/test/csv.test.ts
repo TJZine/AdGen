@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseCSVLine, parseSpreadsheet } from '../lib/utils/csv';
+import { parseCSVLine, parseSpreadsheet, cleanHtml } from '../lib/utils/csv';
 import { formatCurrency } from '../lib/utils/formatters';
 import { mapPrismaAssetToZod, BrandColorsSchema } from '../lib/schemas/project';
 import { Asset as PrismaAsset } from '@prisma/client';
@@ -94,6 +94,64 @@ Includes 2 magazines.",550`;
     expect(result.items).toHaveLength(1);
     expect(result.items[0].description).toBe(`Compact 9mm pistol.\nIncludes 2 magazines.`);
     expect(result.items[0].price).toBe(550);
+  });
+
+  it('should parse WooCommerce CSV fields and map headers correctly', () => {
+    const csv = `Categories,Name,Short description,Description,Regular price,Sale price,Images,Tags
+Handguns,"Walther PDP Steel Frame Pro Full Size 4.5in 9mm 10rd","<p>Short desc</p>","<p>Long description</p>",2199.00,1830.00,"url1.jpg,url2.jpg","9mm, Competition"`;
+    
+    const result = parseSpreadsheet(csv);
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0].title).toBe('Handguns');
+    expect(result.items).toHaveLength(1);
+    
+    const item = result.items[0];
+    expect(item.title).toBe('Walther PDP Steel Frame Pro Full Size 4.5in 9mm 10rd');
+    expect(item.subtitle).toBe('Short desc');
+    expect(item.description).toBe('Long description');
+    expect(item.price).toBe(2199.00);
+    expect(item.salePrice).toBe(1830.00);
+    expect(item.imageAssetId).toBe('url1.jpg');
+    expect(item.metadata.tags).toEqual(['9mm', 'Competition']);
+  });
+});
+
+describe('HTML Cleaning', () => {
+  it('should strip HTML tags and decode entities', () => {
+    const raw = '<p>The Walther PDP Steel Frame Pro Full Size 4.5&quot; 9mm is built for shooters &amp; competitors.</p>';
+    expect(cleanHtml(raw)).toBe('The Walther PDP Steel Frame Pro Full Size 4.5" 9mm is built for shooters & competitors.');
+  });
+
+  it('should format lists and newlines correctly', () => {
+    const raw = '<h3>Key Features</h3><ul><li>Feature 1</li><li>Feature 2</li></ul>';
+    expect(cleanHtml(raw)).toBe('Key Features\n• Feature 1\n• Feature 2');
+  });
+
+  it('should handle complex table markup by removing it', () => {
+    const raw = '<table><tr><td>Manufacturer</td><td>Walther</td></tr></table>';
+    expect(cleanHtml(raw)).toBe('Manufacturer Walther');
+  });
+
+  it('should not strip mathematical comparisons', () => {
+    expect(cleanHtml('price < 50 and caliber > 9mm')).toBe('price < 50 and caliber > 9mm');
+  });
+
+  it('should strip HTML comments', () => {
+    expect(cleanHtml('hello <!-- comment --> world')).toBe('hello world');
+  });
+
+  it('should decode numeric character references (decimal and hex)', () => {
+    expect(cleanHtml('A&#8217;s and B&#x2013;C')).toBe("A's and B–C");
+  });
+
+  it('should decode extra named entities', () => {
+    expect(cleanHtml('a &ndash; b &copy; &reg;')).toBe('a – b © ®');
+  });
+
+  it('should return empty string for non-string inputs', () => {
+    expect(cleanHtml(null)).toBe('');
+    expect(cleanHtml(undefined)).toBe('');
+    expect(cleanHtml(123)).toBe('');
   });
 });
 

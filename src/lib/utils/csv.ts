@@ -66,20 +66,86 @@ function normalizeHeader(h: string): string {
   return h.toLowerCase().replace(/[\s\-_]/g, '');
 }
 
+export function cleanHtml(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  
+  // Replace <br>, <br/>, <br /> with newline
+  let text = value.replace(/<br\s*\/?>/gi, '\n');
+  
+  // Replace list items <li> with bullet points
+  text = text.replace(/<li>/gi, '• ');
+  text = text.replace(/<\/li>/gi, '\n');
+  
+  // Replace block closing tags with newline
+  text = text.replace(/<\/p>|<\/h[1-6]>|<\/div>|<\/tr>/gi, '\n');
+  
+  // Replace table cells with spaces/tabs
+  text = text.replace(/<\/td>|<\/th>/gi, ' ');
+  
+  // Strip HTML comments
+  text = text.replace(/<!--[\s\S]*?-->/g, '');
+  
+  // Strip all other HTML tags safely (avoiding math comparison operators)
+  text = text.replace(/<\/?[a-zA-Z][^>]*>/g, '');
+  
+  // Decode HTML entities
+  text = text
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&ldquo;/g, '"')
+    .replace(/&rdquo;/g, '"')
+    .replace(/&lsquo;/g, "'")
+    .replace(/&rsquo;/g, "'")
+    .replace(/&ndash;/g, '–')
+    .replace(/&mdash;/g, '—')
+    .replace(/&copy;/g, '©')
+    .replace(/&reg;/g, '®')
+    .replace(/&trade;/g, '™');
+
+  // Decode numeric character references (decimal and hexadecimal)
+  text = text.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+  text = text.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+
+  // Normalize curly quotes to straight quotes
+  text = text.replace(/[‘’]/g, "'");
+  text = text.replace(/[“”]/g, '"');
+
+  // Collapse consecutive spaces (excluding newlines)
+  text = text.replace(/[ \t]+/g, ' ');
+
+  // Normalize consecutive newlines and carriage returns
+  text = text.replace(/\r/g, '');
+  text = text.replace(/\n{3,}/g, '\n\n');
+  
+  // Trim spaces around lines but preserve structure
+  text = text.split('\n').map(line => line.trim()).join('\n');
+
+  return text.trim();
+}
+
 const headerMap: Record<string, string> = {
   section: 'section',
   category: 'section',
+  categories: 'section', // WooCommerce
   group: 'section',
   title: 'title',
   name: 'title',
   subtitle: 'subtitle',
+  shortdescription: 'subtitle', // WooCommerce
   description: 'description',
   desc: 'description',
   price: 'price',
+  regularprice: 'price', // WooCommerce
   saleprice: 'salePrice',
   salepricedisplay: 'salePrice',
   badge: 'badge',
   image: 'image',
+  images: 'image', // WooCommerce
   imagepath: 'image',
   imageurl: 'image',
   priority: 'priority',
@@ -173,7 +239,7 @@ export function parseSpreadsheet(rawText: string): { sections: Section[]; items:
     }
 
     // Get or create section
-    const sectionTitle = sanitizeSpreadsheetFormula(record.section || 'Uncategorized');
+    const sectionTitle = sanitizeSpreadsheetFormula(cleanHtml(record.section || 'Uncategorized'));
     let section = sectionMap.get(sectionTitle);
     if (!section) {
       const sectionId = generateId();
@@ -226,18 +292,22 @@ export function parseSpreadsheet(rawText: string): { sections: Section[]; items:
     }
 
     // Map image
-    const imageVal = record.image || null;
+    let imageVal = record.image || null;
+    if (imageVal) {
+      // WooCommerce Images column can be a comma-separated list of URLs
+      imageVal = imageVal.split(',')[0].trim();
+    }
 
     const item: Item = {
       id: generateId(),
       sectionId: section.id,
-      title: sanitizeSpreadsheetFormula(record.title),
-      subtitle: sanitizeSpreadsheetFormula(record.subtitle || ''),
-      description: sanitizeSpreadsheetFormula(record.description || ''),
+      title: sanitizeSpreadsheetFormula(cleanHtml(record.title)),
+      subtitle: sanitizeSpreadsheetFormula(cleanHtml(record.subtitle || '')),
+      description: sanitizeSpreadsheetFormula(cleanHtml(record.description || '')),
       price,
       priceDisplay: formatCurrency(price),
       salePrice,
-      badge: record.badge ? sanitizeSpreadsheetFormula(record.badge) : null,
+      badge: record.badge ? sanitizeSpreadsheetFormula(cleanHtml(record.badge)) : null,
       imageAssetId: imageVal, // map filePath directly to imageAssetId
       priority,
       visibility: 'visible' as VisibilityMode,
@@ -247,7 +317,7 @@ export function parseSpreadsheet(rawText: string): { sections: Section[]; items:
         preferredAspectRatio: '4:3',
       },
       metadata: {
-        tags: tags.map(sanitizeSpreadsheetFormula),
+        tags: tags.map(t => sanitizeSpreadsheetFormula(cleanHtml(t))),
       },
     };
 
